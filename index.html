@@ -1,0 +1,510 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#d97706">
+<title>Entregas de Queijo</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root {
+    --bg: #fffbf2; --card: #ffffff; --ink: #1f1a12; --muted: #6b6253;
+    --line: #eadfcb; --brand: #d97706; --brand-ink: #ffffff;
+    --ok: #15803d; --warn: #b45309; --danger: #b91c1c;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #17140f; --card: #221d16; --ink: #f5efe3; --muted: #b3a892;
+      --line: #3a3226; --brand: #f59e0b; --brand-ink: #1b1306; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { position: sticky; top: 0; z-index: 1000; background: var(--brand); color: var(--brand-ink);
+    padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  header h1 { font-size: 18px; margin: 0; }
+  nav { display: flex; gap: 4px; }
+  nav button { background: transparent; color: inherit; border: 1px solid currentColor; opacity: .75;
+    border-radius: 999px; padding: 6px 12px; font-weight: 600; }
+  nav button.active { opacity: 1; background: rgba(255,255,255,.2); }
+  main { max-width: 720px; margin: 0 auto; padding: 16px; }
+  .view { display: none; } .view.active { display: block; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, textarea, select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; }
+  textarea { min-height: 70px; resize: vertical; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; } .row > * { flex: 1 1 140px; }
+  button { font: inherit; cursor: pointer; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 14px;
+    border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-weight: 600;
+    text-decoration: none; }
+  .btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
+  .btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .btn.danger { color: var(--danger); }
+  .btn.big { width: 100%; font-size: 18px; padding: 16px; }
+  .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .pill.pend { color: var(--warn); border-color: var(--warn); }
+  .pill.done { color: var(--ok); border-color: var(--ok); }
+  .pill.nogeo { color: var(--danger); border-color: var(--danger); }
+  .order h3 { margin: 0 0 4px; font-size: 17px; display: flex; justify-content: space-between; gap: 8px; }
+  .order p { margin: 2px 0; }
+  .order .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .order .actions .btn { padding: 8px 10px; font-size: 14px; }
+  #map { height: 55vh; min-height: 320px; border-radius: 14px; border: 1px solid var(--line); }
+  #pickMap { height: 260px; border-radius: 12px; border: 1px solid var(--line); margin-top: 8px; display: none; }
+  .next { border: 2px solid var(--brand); }
+  .next .dist { font-size: 28px; font-weight: 800; }
+  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+  .toolbar select, .toolbar input { width: auto; flex: 1 1 140px; }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: var(--bg);
+    padding: 10px 16px; border-radius: 10px; z-index: 2000; display: none; max-width: 90vw; }
+  .empty { text-align: center; padding: 30px 10px; color: var(--muted); }
+  code { background: var(--bg); padding: 2px 4px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🧀 Entregas</h1>
+  <nav>
+    <button data-view="pedidos" class="active">Pedidos</button>
+    <button data-view="rota">Rota</button>
+    <button data-view="config">⚙︎</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ PEDIDOS ============ -->
+  <section id="pedidos" class="view active">
+    <div class="toolbar">
+      <input type="date" id="filtroData">
+      <select id="filtroStatus">
+        <option value="pendente">Pendentes</option>
+        <option value="entregue">Entregues</option>
+        <option value="todos">Todos</option>
+      </select>
+      <button class="btn primary" id="btnNovo">+ Novo pedido</button>
+    </div>
+    <div id="resumo" class="muted" style="margin-bottom:8px"></div>
+    <div id="lista"></div>
+  </section>
+
+  <!-- ============ FORM ============ -->
+  <section id="form" class="view">
+    <div class="card">
+      <h2 style="margin:0 0 4px" id="formTitulo">Novo pedido</h2>
+      <p class="muted">Cole a mensagem do cliente no WhatsApp para preencher automático, ou digite.</p>
+      <label>Colar mensagem do WhatsApp</label>
+      <textarea id="colar" placeholder="Nome: Maria&#10;Endereço: Rua das Flores, 123, Centro, Cidade - MG&#10;Pedido: 2 queijos minas&#10;Dia: 20/11"></textarea>
+      <button class="btn" id="btnColar" style="margin-top:6px">Preencher com a mensagem</button>
+      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+      <input type="hidden" id="fId">
+      <label>Nome do cliente *</label><input id="fNome">
+      <label>Telefone / WhatsApp</label><input id="fTel" inputmode="tel" placeholder="(31) 99999-9999">
+      <label>Endereço completo * (rua, número, bairro, cidade)</label><input id="fEnd">
+      <label>Ponto de referência</label><input id="fRef">
+      <div class="row">
+        <div><label>Data da entrega</label><input type="date" id="fData"></div>
+        <div><label>Horário (opcional)</label><input type="time" id="fHora"></div>
+      </div>
+      <label>Pedido (o que e quantidade)</label><textarea id="fItens" placeholder="2 queijos minas meia-cura, 1 requeijão"></textarea>
+      <div class="row">
+        <div><label>Valor (R$)</label><input id="fValor" inputmode="decimal" placeholder="0,00"></div>
+        <div><label>Pagamento</label>
+          <select id="fPag"><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Já pago</option></select></div>
+      </div>
+      <label>Localização no mapa</label>
+      <div class="row">
+        <button class="btn" id="btnGeo">📍 Buscar endereço no mapa</button>
+        <button class="btn" id="btnPin">👆 Marcar no mapa</button>
+      </div>
+      <p class="muted" id="geoStatus">Ainda não localizado.</p>
+      <div id="pickMap"></div>
+      <div class="btns">
+        <button class="btn" id="btnCancelar">Cancelar</button>
+        <button class="btn primary" id="btnSalvar">Salvar pedido</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ROTA ============ -->
+  <section id="rota" class="view">
+    <div class="toolbar">
+      <input type="date" id="rotaData">
+      <button class="btn primary" id="btnIniciar">▶ Iniciar rota</button>
+    </div>
+    <div id="map"></div>
+    <div id="painelRota" style="margin-top:12px"></div>
+  </section>
+
+  <!-- ============ CONFIG ============ -->
+  <section id="config" class="view">
+    <div class="card">
+      <h2 style="margin-top:0">Link para o anúncio</h2>
+      <p class="muted">Coloque seu número de WhatsApp. O app gera um link: quando o cliente clica no anúncio, abre o WhatsApp com a mensagem modelo pronta para ele preencher.</p>
+      <label>Seu WhatsApp (com DDD)</label>
+      <input id="cfgTel" inputmode="tel" placeholder="31999999999">
+      <label>Cidade padrão (ajuda a achar os endereços)</label>
+      <input id="cfgCidade" placeholder="Ex.: Uberlândia - MG">
+      <button class="btn primary" id="btnSalvarCfg" style="margin-top:10px">Salvar</button>
+      <label>Link do anúncio</label>
+      <input id="cfgLink" readonly>
+      <div class="btns">
+        <button class="btn" id="btnCopiarLink">Copiar link</button>
+        <a class="btn" id="btnTestarLink" target="_blank">Testar link</a>
+      </div>
+    </div>
+    <div class="card">
+      <h2 style="margin-top:0">Backup</h2>
+      <p class="muted">Os pedidos ficam salvos neste celular. Faça backup de vez em quando.</p>
+      <div class="btns">
+        <button class="btn" id="btnExport">⬇ Exportar</button>
+        <label class="btn" style="margin:0;color:var(--ink);font-size:16px">⬆ Importar
+          <input type="file" id="fileImport" accept="application/json" hidden></label>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+// ---------------- Armazenamento ----------------
+const KEY = 'queijo_pedidos_v1', CFG = 'queijo_cfg_v1';
+const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} };
+let pedidos = load(KEY, []);
+let cfg = load(CFG, { tel: '', cidade: '' });
+const persist = () => save(KEY, pedidos);
+
+const $ = s => document.querySelector(s);
+const hoje = () => new Date().toLocaleDateString('sv-SE'); // AAAA-MM-DD
+const toast = m => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => t.style.display = 'none', 2600); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const soDigitos = s => String(s || '').replace(/\D/g, '');
+const fmtData = d => d ? d.split('-').reverse().join('/') : 'sem data';
+const fmtDist = m => m < 1000 ? `${Math.round(m)} m` : `${(m/1000).toFixed(1).replace('.', ',')} km`;
+
+// ---------------- Navegação ----------------
+function mostrar(v) {
+  document.querySelectorAll('.view').forEach(e => e.classList.toggle('active', e.id === v));
+  document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
+  if (v === 'rota') setTimeout(() => { mapa.invalidateSize(); desenharMapa(); }, 50);
+  if (v === 'pedidos') renderLista();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll('nav button').forEach(b => b.onclick = () => mostrar(b.dataset.view));
+
+// ---------------- Lista ----------------
+$('#filtroData').value = hoje();
+$('#rotaData').value = hoje();
+$('#filtroData').onchange = $('#filtroStatus').onchange = renderLista;
+
+function renderLista() {
+  const d = $('#filtroData').value, st = $('#filtroStatus').value;
+  const lst = pedidos.filter(p => (!d || p.data === d) && (st === 'todos' || p.status === st))
+    .sort((a, b) => (a.hora || '99').localeCompare(b.hora || '99'));
+  const doDia = pedidos.filter(p => !d || p.data === d);
+  const total = doDia.reduce((s, p) => s + (parseFloat(String(p.valor).replace(',', '.')) || 0), 0);
+  $('#resumo').textContent = `${doDia.filter(p => p.status === 'pendente').length} pendentes · ${doDia.filter(p => p.status === 'entregue').length} entregues · total R$ ${total.toFixed(2).replace('.', ',')}`;
+  $('#lista').innerHTML = lst.length ? lst.map(p => `
+    <div class="card order">
+      <h3><span>${esc(p.nome)}</span>
+        <span>${p.status === 'entregue' ? '<span class="pill done">entregue</span>' : '<span class="pill pend">pendente</span>'}
+        ${p.lat ? '' : '<span class="pill nogeo">sem mapa</span>'}</span></h3>
+      <p>📍 ${esc(p.endereco)}${p.ref ? ` <span class="muted">(${esc(p.ref)})</span>` : ''}</p>
+      ${p.itens ? `<p>🧀 ${esc(p.itens)}</p>` : ''}
+      <p class="muted">📅 ${fmtData(p.data)}${p.hora ? ' às ' + p.hora : ''}${p.valor ? ` · R$ ${esc(p.valor)} (${esc(p.pag)})` : ''}</p>
+      <div class="actions">
+        ${p.tel ? `<a class="btn" href="https://wa.me/55${soDigitos(p.tel).replace(/^55/, '')}" target="_blank">WhatsApp</a>` : ''}
+        <button class="btn" onclick="editar('${p.id}')">Editar</button>
+        ${p.status === 'pendente'
+          ? `<button class="btn" onclick="marcar('${p.id}','entregue')">✓ Entregue</button>`
+          : `<button class="btn" onclick="marcar('${p.id}','pendente')">Voltar p/ pendente</button>`}
+        <button class="btn danger" onclick="excluir('${p.id}')">Excluir</button>
+      </div>
+    </div>`).join('') : '<div class="empty">Nenhum pedido aqui.<br>Toque em “+ Novo pedido”.</div>';
+}
+
+function marcar(id, status) {
+  const p = pedidos.find(x => x.id === id); if (!p) return;
+  p.status = status; p.entregueEm = status === 'entregue' ? Date.now() : null;
+  persist(); renderLista();
+}
+function excluir(id) {
+  if (!confirm('Excluir este pedido?')) return;
+  pedidos = pedidos.filter(p => p.id !== id); persist(); renderLista();
+}
+
+// ---------------- Formulário ----------------
+let geoTemp = null, pickMap = null, pickMarker = null;
+const campos = ['Id','Nome','Tel','End','Ref','Data','Hora','Itens','Valor','Pag'];
+
+function abrirForm(p) {
+  $('#formTitulo').textContent = p ? 'Editar pedido' : 'Novo pedido';
+  $('#colar').value = '';
+  $('#fId').value = p?.id || '';
+  $('#fNome').value = p?.nome || ''; $('#fTel').value = p?.tel || '';
+  $('#fEnd').value = p?.endereco || ''; $('#fRef').value = p?.ref || '';
+  $('#fData').value = p?.data || $('#filtroData').value || hoje(); $('#fHora').value = p?.hora || '';
+  $('#fItens').value = p?.itens || ''; $('#fValor').value = p?.valor || ''; $('#fPag').value = p?.pag || 'Pix';
+  geoTemp = p?.lat ? { lat: p.lat, lng: p.lng } : null;
+  $('#geoStatus').textContent = geoTemp ? '✅ Localizado no mapa.' : 'Ainda não localizado.';
+  $('#pickMap').style.display = 'none';
+  mostrar('form');
+}
+$('#btnNovo').onclick = () => abrirForm(null);
+$('#btnCancelar').onclick = () => mostrar('pedidos');
+window.editar = id => abrirForm(pedidos.find(p => p.id === id));
+$('#fEnd').oninput = () => { geoTemp = null; $('#geoStatus').textContent = 'Endereço mudou — localize de novo.'; };
+
+// Lê mensagem no formato "Campo: valor"
+$('#btnColar').onclick = () => {
+  const txt = $('#colar').value;
+  const pega = (...nomes) => {
+    for (const n of nomes) {
+      const m = txt.match(new RegExp('^\\s*\\*?' + n + '\\*?\\s*[:\\-]\\s*(.+)$', 'im'));
+      if (m) return m[1].trim();
+    }
+    return '';
+  };
+  const v = {
+    nome: pega('nome'), tel: pega('telefone', 'tel', 'whatsapp', 'celular'),
+    end: pega('endere[cç]o', 'end', 'rua'), ref: pega('refer[eê]ncia', 'ponto de refer[eê]ncia', 'ref'),
+    itens: pega('pedido', 'produto', 'produtos', 'itens', 'quero'), dia: pega('dia', 'data'),
+    hora: pega('hor[aá]rio', 'hora'), pag: pega('pagamento', 'pagar')
+  };
+  if (v.nome) $('#fNome').value = v.nome;
+  if (v.tel) $('#fTel').value = v.tel;
+  if (v.end) { $('#fEnd').value = v.end; geoTemp = null; $('#geoStatus').textContent = 'Toque em “Buscar endereço no mapa”.'; }
+  if (v.ref) $('#fRef').value = v.ref;
+  if (v.itens) $('#fItens').value = v.itens;
+  const md = v.dia.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if (md) { let a = md[3] ? (md[3].length === 2 ? '20' + md[3] : md[3]) : new Date().getFullYear();
+    $('#fData').value = `${a}-${md[2].padStart(2,'0')}-${md[1].padStart(2,'0')}`; }
+  else if (/amanh/i.test(v.dia)) { const d = new Date(); d.setDate(d.getDate() + 1); $('#fData').value = d.toLocaleDateString('sv-SE'); }
+  else if (/hoje/i.test(v.dia)) $('#fData').value = hoje();
+  const mh = v.hora.match(/(\d{1,2})(?:[:h](\d{2}))?/);
+  if (mh) $('#fHora').value = `${mh[1].padStart(2,'0')}:${mh[2] || '00'}`;
+  if (v.pag) { const o = [...$('#fPag').options].find(o => o.value.toLowerCase().startsWith(v.pag.toLowerCase().slice(0, 3))); if (o) $('#fPag').value = o.value; }
+  if (!v.nome && !v.end) toast('Não reconheci os campos. Use “Nome:” e “Endereço:”.');
+  else toast('Preenchido! Confira os dados.');
+};
+
+// Busca o endereço (OpenStreetMap / Nominatim — gratuito)
+$('#btnGeo').onclick = async () => {
+  let q = $('#fEnd').value.trim();
+  if (!q) return toast('Digite o endereço primeiro.');
+  if (cfg.cidade && !q.toLowerCase().includes(cfg.cidade.split('-')[0].trim().toLowerCase())) q += ', ' + cfg.cidade;
+  $('#geoStatus').textContent = 'Buscando...';
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q),
+      { headers: { 'Accept-Language': 'pt-BR' } });
+    const j = await r.json();
+    if (!j.length) { $('#geoStatus').textContent = '❌ Não achei. Use “Marcar no mapa” e toque no local.'; return; }
+    geoTemp = { lat: +j[0].lat, lng: +j[0].lon };
+    $('#geoStatus').textContent = '✅ Achei: ' + j[0].display_name + ' — se estiver errado, arraste o pino.';
+    abrirPickMap();
+  } catch (e) { $('#geoStatus').textContent = '❌ Sem internet ou erro. Tente “Marcar no mapa”.'; }
+};
+$('#btnPin').onclick = () => {
+  abrirPickMap();
+  $('#geoStatus').textContent = 'Toque no mapa onde é a casa do cliente (pode arrastar o pino).';
+};
+function abrirPickMap() {
+  $('#pickMap').style.display = 'block';
+  if (!pickMap) {
+    pickMap = L.map('pickMap').setView([-15.8, -47.9], 4);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(pickMap);
+    pickMap.on('click', e => colocarPino(e.latlng));
+  }
+  setTimeout(() => pickMap.invalidateSize(), 50);
+  if (geoTemp) { colocarPino(geoTemp); pickMap.setView(geoTemp, 17); }
+  else if (minhaPos) pickMap.setView(minhaPos, 15);
+  else navigator.geolocation?.getCurrentPosition(p => pickMap.setView([p.coords.latitude, p.coords.longitude], 15), () => {});
+}
+function colocarPino(ll) {
+  geoTemp = { lat: ll.lat, lng: ll.lng };
+  if (!pickMarker) {
+    pickMarker = L.marker(ll, { draggable: true }).addTo(pickMap);
+    pickMarker.on('dragend', () => { const p = pickMarker.getLatLng(); geoTemp = { lat: p.lat, lng: p.lng }; });
+  } else pickMarker.setLatLng(ll);
+  if (!$('#geoStatus').textContent.startsWith('✅')) $('#geoStatus').textContent = '✅ Local marcado.';
+}
+
+$('#btnSalvar').onclick = () => {
+  const nome = $('#fNome').value.trim(), endereco = $('#fEnd').value.trim();
+  if (!nome || !endereco) return toast('Preencha nome e endereço.');
+  const id = $('#fId').value || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
+  const antigo = pedidos.find(p => p.id === id);
+  const p = { ...(antigo || { status: 'pendente', criadoEm: Date.now() }), id, nome, endereco,
+    tel: $('#fTel').value.trim(), ref: $('#fRef').value.trim(), data: $('#fData').value, hora: $('#fHora').value,
+    itens: $('#fItens').value.trim(), valor: $('#fValor').value.trim(), pag: $('#fPag').value,
+    lat: geoTemp?.lat ?? null, lng: geoTemp?.lng ?? null };
+  if (antigo) Object.assign(antigo, p); else pedidos.push(p);
+  persist();
+  toast(p.lat ? 'Pedido salvo!' : 'Salvo, mas sem localização — não vai aparecer na rota.');
+  $('#filtroData').value = p.data || ''; mostrar('pedidos');
+};
+
+// ---------------- Mapa e rota ----------------
+const mapa = L.map('map').setView([-15.8, -47.9], 4);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
+const camada = L.layerGroup().addTo(mapa);
+let minhaPos = null, meuMarcador = null, emRota = false, proximoId = null, pulados = new Set(), watchId = null, centrouUmaVez = false;
+
+const icone = (cor, txt) => L.divIcon({ className: '', iconSize: [30, 30], iconAnchor: [15, 30],
+  html: `<div style="background:${cor};color:#fff;width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:flex;align-items:center;justify-content:center;border:2px solid #fff;box-shadow:0 1px 4px #0006"><span style="transform:rotate(45deg);font-weight:700;font-size:13px">${txt}</span></div>` });
+
+function distancia(a, b) { // metros (Haversine)
+  const R = 6371000, r = x => x * Math.PI / 180;
+  const dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+  const h = Math.sin(dLat/2)**2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng/2)**2;
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+const pendentesDoDia = () => pedidos.filter(p => p.status === 'pendente' && p.data === $('#rotaData').value);
+
+// Ordem sugerida: sempre o mais perto do ponto atual (vizinho mais próximo)
+function ordemSugerida(origem) {
+  let rest = pendentesDoDia().filter(p => p.lat && !pulados.has(p.id)), atual = origem, ordem = [];
+  if (!atual) return rest;
+  while (rest.length) {
+    rest.sort((a, b) => distancia(atual, a) - distancia(atual, b));
+    const n = rest.shift(); ordem.push(n); atual = { lat: n.lat, lng: n.lng };
+  }
+  return ordem.concat(pendentesDoDia().filter(p => p.lat && pulados.has(p.id)));
+}
+
+function desenharMapa() {
+  camada.clearLayers();
+  const ordem = ordemSugerida(minhaPos);
+  const pts = [];
+  ordem.forEach((p, i) => {
+    const ehProx = emRota && p.id === proximoId;
+    L.marker([p.lat, p.lng], { icon: icone(ehProx ? '#d97706' : '#2563eb', i + 1) })
+      .bindPopup(`<b>${esc(p.nome)}</b><br>${esc(p.endereco)}<br>${esc(p.itens || '')}`).addTo(camada);
+    pts.push([p.lat, p.lng]);
+  });
+  pedidos.filter(p => p.status === 'entregue' && p.data === $('#rotaData').value && p.lat)
+    .forEach(p => L.marker([p.lat, p.lng], { icon: icone('#15803d', '✓'), opacity: .7 }).bindPopup(esc(p.nome) + ' — entregue').addTo(camada));
+  if (minhaPos && ordem.length) L.polyline([[minhaPos.lat, minhaPos.lng], ...pts], { color: '#d97706', weight: 3, dashArray: '6 8' }).addTo(camada);
+  if (!emRota) {
+    const todos = pts.concat(minhaPos ? [[minhaPos.lat, minhaPos.lng]] : []);
+    if (todos.length) mapa.fitBounds(todos, { padding: [40, 40], maxZoom: 16 });
+  }
+  renderPainel(ordem);
+}
+
+function renderPainel(ordem) {
+  const semGeo = pendentesDoDia().filter(p => !p.lat).length;
+  const aviso = semGeo ? `<p class="muted">⚠ ${semGeo} pedido(s) sem localização não entram na rota. Edite e marque no mapa.</p>` : '';
+  if (!emRota) {
+    $('#painelRota').innerHTML = `<div class="card"><b>${ordem.length} entrega(s) para ${fmtData($('#rotaData').value)}</b>
+      <p class="muted">Toque em “Iniciar rota”. O app usa seu GPS e sempre manda para a entrega mais perto.</p>${aviso}</div>`;
+    return;
+  }
+  const p = ordem[0];
+  if (!p) {
+    $('#painelRota').innerHTML = `<div class="card next"><h2 style="margin:0">🎉 Todas as entregas feitas!</h2>
+      <button class="btn big" style="margin-top:10px" onclick="pararRota()">Encerrar rota</button></div>`;
+    return;
+  }
+  proximoId = p.id;
+  const d = minhaPos ? distancia(minhaPos, p) : null;
+  const tel = soDigitos(p.tel).replace(/^55/, '');
+  const msg = encodeURIComponent(`Olá ${p.nome.split(' ')[0]}! Aqui é da entrega do queijo, estou a caminho 🚗🧀`);
+  $('#painelRota').innerHTML = `<div class="card next">
+      <div class="muted">PRÓXIMA ENTREGA · faltam ${ordem.length}</div>
+      <div class="dist">${d != null ? fmtDist(d) : 'aguardando GPS...'}</div>
+      <h2 style="margin:4px 0">${esc(p.nome)}</h2>
+      <p>📍 ${esc(p.endereco)}${p.ref ? `<br><span class="muted">Ref.: ${esc(p.ref)}</span>` : ''}</p>
+      ${p.itens ? `<p>🧀 ${esc(p.itens)}</p>` : ''}
+      ${p.valor ? `<p>💰 R$ ${esc(p.valor)} — ${esc(p.pag)}</p>` : ''}
+      ${p.hora ? `<p>⏰ ${p.hora}</p>` : ''}
+      <div class="btns">
+        <a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving">🧭 Google Maps</a>
+        <a class="btn primary" target="_blank" href="https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes">🧭 Waze</a>
+        ${tel ? `<a class="btn" target="_blank" href="https://wa.me/55${tel}?text=${msg}">💬 Avisar cliente</a>
+                 <a class="btn" href="tel:${tel}">📞 Ligar</a>` : ''}
+      </div>
+      <button class="btn ok big" style="margin-top:10px" onclick="entregue('${p.id}')">✓ Entreguei — próximo</button>
+      <div class="btns">
+        <button class="btn" onclick="pular('${p.id}')">Pular por agora</button>
+        <button class="btn danger" onclick="pararRota()">Parar rota</button>
+      </div>
+      ${aviso}
+    </div>`;
+}
+
+$('#rotaData').onchange = () => { pulados.clear(); desenharMapa(); };
+$('#btnIniciar').onclick = () => {
+  if (!pendentesDoDia().some(p => p.lat)) return toast('Não há entregas com localização neste dia.');
+  if (!navigator.geolocation) return toast('Este aparelho não tem GPS disponível.');
+  emRota = true; pulados.clear(); centrouUmaVez = false;
+  $('#btnIniciar').style.display = 'none';
+  watchId = navigator.geolocation.watchPosition(pos => {
+    minhaPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (!meuMarcador) meuMarcador = L.circleMarker(minhaPos, { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(mapa);
+    else meuMarcador.setLatLng(minhaPos);
+    if (!centrouUmaVez) { centrouUmaVez = true; focarProximo(); }
+    desenharMapa();
+  }, err => toast('Permita o acesso à localização para usar a rota.'), { enableHighAccuracy: true, maximumAge: 10000 });
+  desenharMapa();
+};
+function focarProximo() {
+  const p = ordemSugerida(minhaPos)[0];
+  if (p && minhaPos) mapa.fitBounds([[minhaPos.lat, minhaPos.lng], [p.lat, p.lng]], { padding: [50, 50], maxZoom: 16 });
+}
+window.entregue = id => { marcar(id, 'entregue'); toast('Entregue! Calculando o próximo mais perto...'); desenharMapa(); focarProximo(); };
+window.pular = id => { pulados.add(id); desenharMapa(); focarProximo(); };
+window.pararRota = () => {
+  emRota = false; proximoId = null;
+  if (watchId != null) navigator.geolocation.clearWatch(watchId);
+  watchId = null; $('#btnIniciar').style.display = ''; desenharMapa();
+};
+
+// ---------------- Configurações ----------------
+const MODELO = `Olá! Quero agendar um pedido de queijo 🧀
+Nome:
+Endereço:
+Ponto de referência:
+Pedido:
+Dia:
+Horário:
+Pagamento: `;
+function atualizarLink() {
+  const t = soDigitos(cfg.tel).replace(/^55/, '');
+  const link = t ? `https://wa.me/55${t}?text=${encodeURIComponent(MODELO)}` : '';
+  $('#cfgLink').value = link || 'Preencha seu WhatsApp acima';
+  $('#btnTestarLink').href = link || '#';
+}
+$('#cfgTel').value = cfg.tel; $('#cfgCidade').value = cfg.cidade; atualizarLink();
+$('#btnSalvarCfg').onclick = () => { cfg = { tel: $('#cfgTel').value, cidade: $('#cfgCidade').value.trim() }; save(CFG, cfg); atualizarLink(); toast('Salvo!'); };
+$('#btnCopiarLink').onclick = async () => {
+  try { await navigator.clipboard.writeText($('#cfgLink').value); toast('Link copiado!'); }
+  catch { $('#cfgLink').select(); toast('Selecione e copie o link.'); }
+};
+$('#btnExport').onclick = () => {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify({ pedidos, cfg }, null, 2)], { type: 'application/json' }));
+  a.download = `pedidos-queijo-${hoje()}.json`; a.click();
+};
+$('#fileImport').onchange = async e => {
+  try {
+    const j = JSON.parse(await e.target.files[0].text());
+    if (!Array.isArray(j.pedidos)) throw 0;
+    if (!confirm(`Importar ${j.pedidos.length} pedidos? Os atuais serão substituídos.`)) return;
+    pedidos = j.pedidos; persist(); if (j.cfg) { cfg = j.cfg; save(CFG, cfg); }
+    toast('Importado!'); mostrar('pedidos');
+  } catch { toast('Arquivo inválido.'); }
+};
+
+window.marcar = marcar; window.excluir = excluir;
+renderLista();
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

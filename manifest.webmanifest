@@ -1,0 +1,9 @@
+{
+  "name": "Entregas de Queijo",
+  "short_name": "Entregas",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#fffbf2",
+  "theme_color": "#d97706",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
