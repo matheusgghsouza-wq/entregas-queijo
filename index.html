@@ -101,7 +101,7 @@
   .order .extra { display: none; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
   .order .extra.on { display: flex; }
   .order .extra .btn { padding: 8px 12px; font-size: 14px; flex: 1 1 auto; }
-  .order.feito { opacity: .75; }
+  .order.feito { opacity: .85; border-left: 5px solid var(--ok); }
   .order.feito .nome { text-decoration: line-through; text-decoration-color: var(--muted); }
 
   /* Botão flutuante */
@@ -145,9 +145,9 @@
       <label class="chip" id="chipOutro" style="margin:0">📅 <input type="date" id="filtroData"></label>
     </div>
     <div class="seg" id="segStatus">
-      <button data-v="pendente" class="on">A entregar</button><button data-v="entregue">Entregues</button><button data-v="todos">Todos</button>
+      <button data-v="todos" class="on">Todos</button><button data-v="pendente">A entregar</button><button data-v="entregue">Entregues ✓</button>
     </div>
-    <select id="filtroStatus" class="hide"><option value="pendente">p</option><option value="entregue">e</option><option value="todos">t</option></select>
+    <select id="filtroStatus" class="hide"><option value="todos">t</option><option value="pendente">p</option><option value="entregue">e</option></select>
     <div id="resumo" class="stats"></div>
     <div id="lista"></div>
   </section>
@@ -332,7 +332,8 @@ $('#filtroData').onchange = $('#filtroStatus').onchange = renderLista;
 function renderLista() {
   const d = $('#filtroData').value, st = $('#filtroStatus').value;
   const lst = pedidos.filter(p => (!d || p.data === d) && (st === 'todos' || p.status === st))
-    .sort((a, b) => (a.hora || '99').localeCompare(b.hora || '99'));
+    .sort((a, b) => (a.status === 'entregue') - (b.status === 'entregue')
+      || (a.status === 'entregue' ? (b.entregueEm || 0) - (a.entregueEm || 0) : (a.hora || '99').localeCompare(b.hora || '99')));
   const doDia = pedidos.filter(p => !d || p.data === d);
   const total = doDia.reduce((s, p) => s + (parseFloat(String(p.valor).replace(',', '.')) || 0), 0);
   $('#resumo').innerHTML = `<div class="stat"><b>${doDia.filter(p => p.status === 'pendente').length}</b><span>a entregar</span></div>
@@ -344,7 +345,7 @@ function renderLista() {
       <div class="topo">
         <div class="nome">${esc(p.nome)}</div>
         ${p.hora || p.horario ? `<span class="pill hora">⏰ ${esc(p.hora || p.horario)}</span>` : ''}
-        ${p.status === 'entregue' ? '<span class="pill done">✓ entregue</span>'
+        ${p.status === 'entregue' ? `<span class="pill done">✓ Entregue${p.entregueEm ? ' às ' + new Date(p.entregueEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}</span>`
           : p.lat ? (p.geoPrec === 'aproximada' ? '<span class="pill pend">local aprox.</span>' : '') : '<span class="pill nogeo">sem mapa</span>'}
       </div>
       <div class="linha"><span class="ic">📍</span><span>${esc(p.endereco)}${p.ref ? `<br><span class="ref">${esc(p.ref)}</span>` : ''}</span></div>
@@ -371,6 +372,7 @@ function marcar(id, status) {
   const p = pedidos.find(x => x.id === id); if (!p) return;
   p.status = status; p.entregueEm = status === 'entregue' ? Date.now() : null;
   persist(); renderLista();
+  if (status === 'entregue') toast('✓ Entregue! Ficou no fim da lista.');
 }
 function excluir(id) {
   if (!confirm('Excluir este pedido?')) return;
