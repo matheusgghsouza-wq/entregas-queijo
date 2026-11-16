@@ -133,6 +133,8 @@
         <button class="btn" id="btnGeo">📍 Buscar endereço no mapa</button>
         <button class="btn" id="btnPin">👆 Marcar no mapa</button>
       </div>
+      <label>Ou cole a localização que o cliente mandou (link do Google Maps / WhatsApp)</label>
+      <input id="fLink" placeholder="https://maps.google.com/...">
       <p class="muted" id="geoStatus">Ainda não localizado.</p>
       <div id="pickMap"></div>
       <div class="btns">
@@ -265,7 +267,8 @@ function abrirForm(p) {
   $('#fRua').value = p ? (p.rua ?? p.endereco ?? '') : ''; $('#fNum').value = p?.numero || '';
   $('#fBairro').value = p?.bairro || ''; $('#fCidade').value = p?.cidade || (p ? '' : cfg.cidade || '');
   $('#cepStatus').textContent = 'Digite o CEP que a cidade aparece sozinha.';
-  $('#fRef').value = p?.ref || '';
+  $('#fRef').value = p?.ref || ''; $('#fLink').value = '';
+  if (pickMarker) { pickMarker.remove(); pickMarker = null; }
   $('#fData').value = p?.data || $('#filtroData').value || hoje(); $('#fHora').value = p?.hora || '';
   $('#fItens').value = p?.itens || ''; $('#fValor').value = p?.valor || ''; $('#fPag').value = p?.pag || 'Pix';
   geoTemp = p?.lat ? { lat: p.lat, lng: p.lng } : null;
@@ -356,44 +359,80 @@ $('#btnColar').onclick = () => {
   const mh = v.hora.match(/(\d{1,2})(?:[:h](\d{2}))?/);
   if (mh) $('#fHora').value = `${mh[1].padStart(2,'0')}:${mh[2] || '00'}`;
   if (v.pag) { const o = [...$('#fPag').options].find(o => o.value.toLowerCase().startsWith(v.pag.toLowerCase().slice(0, 3))); if (o) $('#fPag').value = o.value; }
+  if (extrairCoords(txt) || /maps\.app\.goo\.gl|goo\.gl\/maps/.test(txt)) usarLink(txt);
   if (!v.nome && !v.end && !v.cep) toast('Não reconheci os campos. Use “Nome:”, “CEP:” e “Rua:”.');
   else toast('Preenchido! Confira os dados.');
 };
 
 // Busca o endereço (OpenStreetMap / Nominatim — gratuito)
+const semAcento = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+async function nominatim(params) {
+  const u = new URLSearchParams({ format: 'json', limit: '5', countrycodes: 'br', addressdetails: '1' });
+  Object.entries(params).forEach(([k, v]) => v && u.set(k, v));
+  const r = await fetch('https://nominatim.openstreetmap.org/search?' + u, { headers: { 'Accept-Language': 'pt-BR' } });
+  return r.json();
+}
+// Só aceita resultado que seja mesmo da cidade do pedido
+const daCidade = (res, cid) => { const a = res.address || {};
+  return [a.city, a.town, a.village, a.municipality, a.hamlet].some(x => x && semAcento(x) === semAcento(cid)); };
+
 $('#btnGeo').onclick = async () => {
-  const rua = $('#fRua').value.trim(), num = $('#fNum').value.trim(), bairro = $('#fBairro').value.trim();
-  const cidade = ($('#fCidade').value.trim() || cfg.cidade || '').replace(/\s*-\s*/, ', ');
-  if (!rua && !cidade) return toast('Coloque o CEP ou a rua primeiro.');
-  // Tenta do mais exato pro mais geral: rua+número → rua → bairro → cidade
-  const tentativas = [
-    rua && num && [`${rua}, ${num}, ${bairro ? bairro + ', ' : ''}${cidade}`, '✅ Achei o endereço'],
-    rua && [`${rua}, ${cidade}`, '✅ Achei a rua (sem o número exato) — arraste o pino até a casa'],
-    bairro && [`${bairro}, ${cidade}`, '⚠ Não achei a rua, mostrei o bairro — arraste o pino até a casa'],
-    cidade && [cidade, '⚠ Não achei a rua, mostrei a cidade — dê zoom e toque/arraste o pino na casa'],
-  ].filter(Boolean);
+  const rua = $('#fRua').value.trim(), num = $('#fNum').value.trim();
+  const [cid, uf] = ($('#fCidade').value.trim() || cfg.cidade || '').split(/\s*-\s*/);
+  if (!cid) return toast('Coloque o CEP (ou a cidade) primeiro.');
   $('#geoStatus').textContent = 'Buscando...';
   try {
-    for (const [q, msg] of tentativas) {
-      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q),
-        { headers: { 'Accept-Language': 'pt-BR' } });
-      const j = await r.json();
-      if (j.length) {
-        geoTemp = { lat: +j[0].lat, lng: +j[0].lon };
-        $('#geoStatus').textContent = msg + '.';
-        abrirPickMap();
-        if (msg.startsWith('⚠')) pickMap.setView(geoTemp, q === cidade ? 14 : 16);
-        return;
-      }
+    const base = { city: cid, state: uf, country: 'Brasil' };
+    let achou = null, exato = false;
+    if (rua && num) {
+      achou = (await nominatim({ ...base, street: `${num} ${rua}` })).find(x => daCidade(x, cid));
+      exato = !!achou?.address?.house_number;
     }
-    $('#geoStatus').textContent = '❌ Não achei. Use “Marcar no mapa” e toque no local.';
+    if (rua && !achou) achou = (await nominatim({ ...base, street: rua })).find(x => daCidade(x, cid));
+    if (achou) {
+      geoTemp = { lat: +achou.lat, lng: +achou.lon };
+      $('#geoStatus').textContent = exato ? '✅ Achei o endereço. Confira o pino; se precisar, arraste.'
+        : '✅ Achei a rua, mas não o número. Arraste o pino até a casa certa.';
+      abrirPickMap();
+      return;
+    }
+    // Não achou a rua: NÃO chuta. Mostra a cidade sem pino pra você tocar na casa.
+    const c = (await nominatim(base)).find(x => daCidade(x, cid));
+    geoTemp = null;
+    if (pickMarker) { pickMarker.remove(); pickMarker = null; }
+    $('#geoStatus').textContent = '⚠ O mapa não conhece essa rua. Toque no mapa onde fica a casa (use o ponto de referência), ou cole a localização que o cliente mandar.';
+    abrirPickMap(c ? { lat: +c.lat, lng: +c.lon } : null);
   } catch (e) { $('#geoStatus').textContent = '❌ Sem internet ou erro. Tente “Marcar no mapa”.'; }
 };
+
+// Link de localização (Google Maps / WhatsApp)
+function extrairCoords(t) {
+  try { t = decodeURIComponent(t || ''); } catch {}
+  const m = t.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
+  if (!m) return null;
+  const lat = +m[1], lng = +m[2];
+  return (lat > -35 && lat < 6 && lng > -75 && lng < -28) ? { lat, lng } : null; // dentro do Brasil
+}
+async function usarLink(texto) {
+  let c = extrairCoords(texto);
+  const curto = (texto || '').match(/https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)\/\S+/);
+  if (!c && curto) {
+    $('#geoStatus').textContent = 'Abrindo o link...';
+    try { const r = await (await fetch('/api/resolver?url=' + encodeURIComponent(curto[0]))).json(); c = extrairCoords(r.url); } catch {}
+  }
+  if (!c) { if (texto.trim()) $('#geoStatus').textContent = '❌ Não consegui ler esse link. Tente “Marcar no mapa”.'; return false; }
+  geoTemp = c;
+  $('#geoStatus').textContent = '✅ Localização do cliente marcada. Confira o pino.';
+  abrirPickMap();
+  return true;
+}
+$('#fLink').addEventListener('change', e => usarLink(e.target.value));
+$('#fLink').addEventListener('paste', () => setTimeout(() => usarLink($('#fLink').value), 0));
 $('#btnPin').onclick = () => {
   abrirPickMap();
   $('#geoStatus').textContent = 'Toque no mapa onde é a casa do cliente (pode arrastar o pino).';
 };
-function abrirPickMap() {
+function abrirPickMap(centro) {
   $('#pickMap').style.display = 'block';
   if (!pickMap) {
     pickMap = L.map('pickMap').setView([-15.8, -47.9], 4);
@@ -402,6 +441,7 @@ function abrirPickMap() {
   }
   setTimeout(() => pickMap.invalidateSize(), 50);
   if (geoTemp) { colocarPino(geoTemp); pickMap.setView(geoTemp, 17); }
+  else if (centro) pickMap.setView(centro, 15);
   else if (minhaPos) pickMap.setView(minhaPos, 15);
   else navigator.geolocation?.getCurrentPosition(p => pickMap.setView([p.coords.latitude, p.coords.longitude], 15), () => {});
 }
@@ -558,7 +598,9 @@ Ponto de referência:
 Pedido:
 Dia:
 Horário:
-Pagamento: `;
+Pagamento:
+
+📍 Se puder, mande também sua localização aqui no WhatsApp (no clipe 📎 → Localização).`;
 function atualizarLink() {
   const t = soDigitos(cfg.tel).replace(/^55/, '');
   const link = t ? `https://wa.me/55${t}?text=${encodeURIComponent(MODELO)}` : '';
