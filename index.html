@@ -833,13 +833,13 @@ async function buscarPedidosOnline(manual) {
       headers: { apikey: SB.supabaseKey, Authorization: 'Bearer ' + SB.supabaseKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ p_codigo: cfg.codigo, p_desde: new Date(Date.now() - 30 * 864e5).toISOString() }) });
     const j = await r.json().catch(() => null);
-    if (!r.ok) {
-      const m = String(j?.message || '');
-      statusOnline(/codigo/.test(m) ? '❌ Código errado. Confira e salve de novo.' : /tentativas/.test(m) ? '⏳ Muitas tentativas. Espere 15 minutos.' : '❌ Não consegui buscar agora.');
+    if (!r.ok || !j?.ok) {
+      const m = j?.erro || '';
+      statusOnline(m === 'codigo' ? '❌ Código errado. Confira e salve de novo.' : m === 'tentativas' ? '⏳ Muitas tentativas. Espere 15 minutos.' : '❌ Não consegui buscar agora.');
       return;
     }
     let novos = 0;
-    for (const x of j) {
+    for (const x of j.pedidos || []) {
       if (importados.has(x.id)) continue;   // já veio antes (mesmo que você tenha excluído)
       importados.add(x.id);
       pedidos.push({ id: 's' + x.id.replace(/-/g, '').slice(0, 12), onlineId: x.id, origem: 'site', status: 'pendente',

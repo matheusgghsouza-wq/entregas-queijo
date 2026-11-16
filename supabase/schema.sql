@@ -47,21 +47,23 @@ create table public.tentativas_codigo (
 alter table public.tentativas_codigo enable row level security;
 revoke all on public.tentativas_codigo from anon, authenticated;
 
--- App do vendedor busca os pedidos recentes informando o código
+-- App do vendedor busca os pedidos recentes informando o código.
+-- Devolve JSON (sem erro) para que a tentativa errada fique registrada na trava.
 create or replace function public.pedidos_recentes(p_codigo text, p_desde timestamptz default now() - interval '30 days')
-returns setof public.pedidos_recebidos
+returns jsonb
 language plpgsql security definer set search_path = public, extensions
 as $$
 begin
   if (select count(*) from tentativas_codigo where em > now() - interval '15 minutes') >= 10 then
-    raise exception 'muitas tentativas, aguarde alguns minutos';
+    return jsonb_build_object('ok', false, 'erro', 'tentativas');
   end if;
   if not exists (select 1 from vendedor where codigo_hash = crypt(p_codigo, codigo_hash)) then
     insert into tentativas_codigo default values;
-    raise exception 'codigo invalido';
+    return jsonb_build_object('ok', false, 'erro', 'codigo');
   end if;
   delete from tentativas_codigo where em < now() - interval '1 day';
-  return query select * from pedidos_recebidos where criado_em >= p_desde order by criado_em;
+  return jsonb_build_object('ok', true, 'pedidos', coalesce(
+    (select jsonb_agg(to_jsonb(p) order by p.criado_em) from pedidos_recebidos p where p.criado_em >= p_desde), '[]'::jsonb));
 end $$;
 revoke all on function public.pedidos_recentes(text, timestamptz) from public;
 grant execute on function public.pedidos_recentes(text, timestamptz) to anon;
