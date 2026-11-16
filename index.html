@@ -10,180 +10,245 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <style>
   :root {
-    --bg: #fffbf2; --card: #ffffff; --ink: #1f1a12; --muted: #6b6253;
-    --line: #eadfcb; --brand: #d97706; --brand-ink: #ffffff;
-    --ok: #15803d; --warn: #b45309; --danger: #b91c1c;
+    --bg: #fbf7f0; --card: #ffffff; --ink: #2b2118; --muted: #7a6d5d; --soft: #f4ece0;
+    --line: #ece3d4; --brand: #e07b12; --brand-dark: #c4650a; --brand-ink: #ffffff; --brand-soft: #fff1e0;
+    --ok: #2f8f4e; --ok-soft: #e7f5ec; --warn: #b45309; --danger: #c0392b;
+    --shadow: 0 1px 2px rgba(60,40,10,.06), 0 4px 14px -6px rgba(60,40,10,.18);
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #17140f; --card: #221d16; --ink: #f5efe3; --muted: #b3a892;
-      --line: #3a3226; --brand: #f59e0b; --brand-ink: #1b1306; }
+    :root { --bg: #16120d; --card: #211b14; --ink: #f6efe4; --muted: #b5a690; --soft: #2a231a;
+      --line: #3a3024; --brand: #f39a3d; --brand-dark: #e07b12; --brand-ink: #1b1306; --brand-soft: #3a2a17;
+      --ok: #5cc27f; --ok-soft: #1d3325; --shadow: 0 4px 14px -6px rgba(0,0,0,.6); }
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
-    font: 16px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-  header { position: sticky; top: 0; z-index: 1000; background: var(--brand); color: var(--brand-ink);
-    padding: 12px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  header h1 { font-size: 18px; margin: 0; }
-  nav { display: flex; gap: 4px; }
-  nav button { background: transparent; color: inherit; border: 1px solid currentColor; opacity: .75;
-    border-radius: 999px; padding: 6px 12px; font-weight: 600; }
-  nav button.active { opacity: 1; background: rgba(255,255,255,.2); }
-  main { max-width: 720px; margin: 0 auto; padding: 16px; }
-  .view { display: none; } .view.active { display: block; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
-  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
-  input, textarea, select { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line);
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; min-height: 100%; background: var(--bg); color: var(--ink);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+
+  /* Topo laranja simples */
+  header { position: sticky; top: 0; z-index: 1000; background: var(--brand); color: #fff;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 12px; box-shadow: 0 2px 10px -4px rgba(0,0,0,.25); }
+  header .in { max-width: 720px; margin: 0 auto; display: flex; align-items: center; gap: 10px; }
+  header h1 { font-size: 19px; margin: 0; font-weight: 800; letter-spacing: -.01em; }
+  header .sub { font-size: 12.5px; opacity: .9; margin-left: auto; font-weight: 600; }
+
+  /* Menu embaixo */
+  nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1100; display: flex; justify-content: center;
+    background: var(--card); border-top: 1px solid var(--line); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+  nav button { flex: 1; max-width: 170px; background: none; border: 0; color: var(--muted); padding: 6px 4px; border-radius: 12px;
+    display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 12px; font-weight: 700; }
+  nav button svg { width: 24px; height: 24px; }
+  nav button.active { color: var(--brand); }
+  nav button.active svg { background: var(--brand-soft); border-radius: 999px; padding: 2px 14px; width: 52px; box-sizing: content-box; }
+
+  main { max-width: 720px; margin: 0 auto; padding: 14px 16px 150px; }
+  .view { display: none; } .view.active { display: block; animation: aparece .16s ease-out; }
+  @keyframes aparece { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+  h2.tit { font-size: 22px; margin: 6px 0 12px; letter-spacing: -.01em; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .secao { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--brand-dark); margin: 0 0 4px; }
+  label { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin: 12px 0 4px; }
+  input, textarea, select { width: 100%; padding: 12px 13px; border-radius: 12px; border: 1.5px solid var(--line);
     background: var(--bg); color: var(--ink); font: inherit; }
+  input:focus, textarea:focus, select:focus { outline: none; border-color: var(--brand); background: var(--card); }
   textarea { min-height: 70px; resize: vertical; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; } .row > * { flex: 1 1 140px; }
-  button { font: inherit; cursor: pointer; }
+  button { font: inherit; cursor: pointer; color: inherit; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 12px 14px;
-    border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-weight: 600;
-    text-decoration: none; }
+    border-radius: 12px; border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font-weight: 700;
+    text-decoration: none; transition: transform .08s, background .15s; }
+  .btn:active { transform: scale(.97); }
   .btn.primary { background: var(--brand); color: var(--brand-ink); border-color: var(--brand); }
   .btn.ok { background: var(--ok); color: #fff; border-color: var(--ok); }
+  .btn.soft { background: var(--brand-soft); border-color: transparent; color: var(--brand-dark); }
   .btn.danger { color: var(--danger); }
-  .btn.big { width: 100%; font-size: 18px; padding: 16px; }
+  .btn.big { width: 100%; font-size: 17px; padding: 15px; }
   .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
   .muted { color: var(--muted); font-size: 14px; }
-  .pill { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
-  .pill.pend { color: var(--warn); border-color: var(--warn); }
-  .pill.done { color: var(--ok); border-color: var(--ok); }
-  .pill.nogeo { color: var(--danger); border-color: var(--danger); }
-  .order h3 { margin: 0 0 4px; font-size: 17px; display: flex; justify-content: space-between; gap: 8px; }
-  .order p { margin: 2px 0; }
-  .order .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-  .order .actions .btn { padding: 8px 10px; font-size: 14px; }
-  #map { height: 55vh; min-height: 320px; border-radius: 14px; border: 1px solid var(--line); }
-  #pickMap { height: 260px; border-radius: 12px; border: 1px solid var(--line); margin-top: 8px; display: none; }
+
+  /* Atalhos (chips) */
+  .chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; margin-bottom: 10px; scrollbar-width: none; }
+  .chip { flex: none; border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 8px 14px; font-weight: 700; font-size: 14px; color: var(--muted); }
+  .chip.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  .chip input[type=date] { border: 0; padding: 0; background: transparent; width: 125px; font-weight: 700; color: inherit; }
+  .seg { display: flex; background: var(--soft); border-radius: 12px; padding: 4px; margin-bottom: 12px; }
+  .seg button { flex: 1; border: 0; background: none; padding: 9px 6px; border-radius: 9px; font-weight: 700; font-size: 14px; color: var(--muted); }
+  .seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+
+  .pill { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+  .pill.pend { background: var(--brand-soft); color: var(--brand-dark); }
+  .pill.done { background: var(--ok-soft); color: var(--ok); }
+  .pill.nogeo { background: #fde8e6; color: var(--danger); }
+  .pill.hora { background: var(--soft); color: var(--ink); }
+
+  /* Resumo */
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow); }
+  .stat b { display: block; font-size: 22px; line-height: 1.15; }
+  .stat span { font-size: 12px; color: var(--muted); font-weight: 700; }
+  .stat.dinheiro b { color: var(--ok); }
+
+  /* Cartão de pedido */
+  .order { padding: 14px 14px 12px; }
+  .order .topo { display: flex; align-items: center; gap: 8px; }
+  .order .nome { font-size: 17px; font-weight: 800; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .order .linha { display: flex; gap: 8px; align-items: flex-start; margin-top: 6px; font-size: 15px; }
+  .order .linha .ic { width: 20px; flex: none; text-align: center; }
+  .order .ref { color: var(--muted); font-size: 13.5px; }
+  .order .acoes { display: flex; gap: 8px; margin-top: 12px; }
+  .order .acoes .btn { flex: 1; padding: 10px; font-size: 15px; }
+  .order .acoes .mais { flex: 0 0 46px; font-size: 20px; line-height: 1; padding: 8px 0; }
+  .order .extra { display: none; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .order .extra.on { display: flex; }
+  .order .extra .btn { padding: 8px 12px; font-size: 14px; flex: 1 1 auto; }
+  .order.feito { opacity: .75; }
+  .order.feito .nome { text-decoration: line-through; text-decoration-color: var(--muted); }
+
+  /* Botão flutuante */
+  .fab { position: fixed; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); z-index: 1050; border: 0;
+    background: var(--brand); color: #fff; font-weight: 800; font-size: 16px; padding: 15px 20px; border-radius: 999px;
+    box-shadow: 0 8px 20px -6px rgba(224,123,18,.7); display: flex; align-items: center; gap: 6px; }
+  .fab:active { transform: scale(.96); }
+  body.no-fab .fab { display: none; }
+
+  /* Barra de salvar do formulário */
+  .barra { position: fixed; left: 0; right: 0; bottom: calc(62px + env(safe-area-inset-bottom)); z-index: 1050;
+    background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px); border-top: 1px solid var(--line); padding: 10px 16px; }
+  .barra .in { max-width: 720px; margin: 0 auto; display: grid; grid-template-columns: 1fr 2fr; gap: 8px; }
+  details.colar { background: var(--brand-soft); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  details.colar summary { font-weight: 800; color: var(--brand-dark); cursor: pointer; list-style: none; }
+  details.colar summary::-webkit-details-marker { display: none; }
+
+  #map { height: 46vh; min-height: 280px; border-radius: 16px; border: 1px solid var(--line); box-shadow: var(--shadow); }
+  #pickMap { height: 260px; border-radius: 14px; border: 1px solid var(--line); margin-top: 8px; display: none; }
   .next { border: 2px solid var(--brand); }
-  .next .dist { font-size: 28px; font-weight: 800; }
+  .next .dist { font-size: 32px; font-weight: 800; color: var(--brand-dark); line-height: 1.1; }
   .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
   .toolbar select, .toolbar input { width: auto; flex: 1 1 140px; }
-  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--ink); color: var(--bg);
-    padding: 10px 16px; border-radius: 10px; z-index: 2000; display: none; max-width: 90vw; }
-  .empty { text-align: center; padding: 30px 10px; color: var(--muted); }
+  .toast { position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: var(--bg);
+    padding: 10px 16px; border-radius: 12px; z-index: 2000; display: none; max-width: 90vw; font-weight: 700; }
+  .empty { text-align: center; padding: 36px 10px; color: var(--muted); }
+  .empty .ic { font-size: 44px; }
+  .hide { display: none !important; }
   code { background: var(--bg); padding: 2px 4px; border-radius: 4px; }
-  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
-  .stat b { display: block; font-size: 22px; line-height: 1.1; }
-  .stat span { font-size: 12px; color: var(--muted); font-weight: 600; }
-  .stat.dinheiro b { color: var(--ok); }
-  .order.feito { opacity: .8; }
-  .empty svg { width: 64px; height: 64px; opacity: .8; }
 </style>
 </head>
 <body>
-<header>
-  <h1>🧀 Cantinho da Roça</h1>
-  <nav>
-    <button data-view="pedidos" class="active">Pedidos</button>
-    <button data-view="rota">Rota</button>
-    <button data-view="config">⚙︎</button>
-  </nav>
-</header>
+<header><div class="in"><h1>🧀 Cantinho da Roça</h1><span class="sub">Pedidos e entregas</span></div></header>
 
 <main>
   <!-- ============ PEDIDOS ============ -->
   <section id="pedidos" class="view active">
-    <div class="toolbar">
-      <input type="date" id="filtroData">
-      <select id="filtroStatus">
-        <option value="pendente">Pendentes</option>
-        <option value="entregue">Entregues</option>
-        <option value="todos">Todos</option>
-      </select>
-      <button class="btn primary" id="btnNovo">+ Novo pedido</button>
+    <div class="chips" id="chipsDia">
+      <button class="chip" data-dia="hoje">Hoje</button>
+      <button class="chip" data-dia="amanha">Amanhã</button>
+      <label class="chip" id="chipOutro" style="margin:0">📅 <input type="date" id="filtroData"></label>
     </div>
+    <div class="seg" id="segStatus">
+      <button data-v="pendente" class="on">A entregar</button><button data-v="entregue">Entregues</button><button data-v="todos">Todos</button>
+    </div>
+    <select id="filtroStatus" class="hide"><option value="pendente">p</option><option value="entregue">e</option><option value="todos">t</option></select>
     <div id="resumo" class="stats"></div>
     <div id="lista"></div>
   </section>
 
   <!-- ============ FORM ============ -->
   <section id="form" class="view">
+    <h2 class="tit" id="formTitulo">Novo pedido</h2>
+    <details class="colar">
+      <summary>📋 Colar mensagem do WhatsApp (preenche sozinho)</summary>
+      <textarea id="colar" style="margin-top:10px" placeholder="Nome: Maria&#10;CEP: 78460-000&#10;Rua: Rua das Flores&#10;Número: 123&#10;Bairro: Centro&#10;Pedido: 2 queijos&#10;Dia: amanhã"></textarea>
+      <button class="btn primary" id="btnColar" style="margin-top:8px;width:100%">Preencher com a mensagem</button>
+    </details>
+    <input type="hidden" id="fId">
     <div class="card">
-      <h2 style="margin:0 0 4px" id="formTitulo">Novo pedido</h2>
-      <p class="muted">Cole a mensagem do cliente no WhatsApp para preencher automático, ou digite.</p>
-      <label>Colar mensagem do WhatsApp</label>
-      <textarea id="colar" placeholder="Nome: Maria&#10;CEP: 38400-000&#10;Rua: Rua das Flores&#10;Número: 123&#10;Bairro: Centro&#10;Pedido: 2 queijos minas&#10;Dia: 20/11"></textarea>
-      <button class="btn" id="btnColar" style="margin-top:6px">Preencher com a mensagem</button>
-      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
-      <input type="hidden" id="fId">
-      <label>Nome do cliente *</label><input id="fNome">
-      <label>Telefone / WhatsApp</label><input id="fTel" inputmode="tel" placeholder="(31) 99999-9999">
+      <div class="secao">👤 Cliente</div>
+      <label>Nome *</label><input id="fNome" autocomplete="off">
+      <label>WhatsApp</label><input id="fTel" inputmode="tel" placeholder="(65) 99999-9999">
+    </div>
+    <div class="card">
+      <div class="secao">🏠 Endereço</div>
       <label>CEP</label>
       <div class="row" style="flex-wrap:nowrap">
         <input id="fCep" inputmode="numeric" placeholder="00000-000" maxlength="9" style="flex:1 1 auto">
-        <button class="btn" id="btnCep" style="flex:0 0 auto">Buscar CEP</button>
+        <button class="btn soft" id="btnCep" style="flex:0 0 auto">Buscar</button>
       </div>
-      <p class="muted" id="cepStatus" style="margin:4px 0 0">Digite o CEP que a cidade aparece sozinha.</p>
+      <p class="muted" id="cepStatus" style="margin:6px 0 0">Digite o CEP que a cidade aparece sozinha.</p>
       <div class="row">
         <div style="flex:3 1 180px"><label>Rua *</label><input id="fRua"></div>
         <div style="flex:1 1 80px"><label>Número</label><input id="fNum" inputmode="numeric"></div>
       </div>
       <div class="row">
         <div><label>Bairro</label><input id="fBairro"></div>
-        <div><label>Cidade - UF</label><input id="fCidade" placeholder="Cidade - MG"></div>
+        <div><label>Cidade - UF</label><input id="fCidade" placeholder="Cidade - UF"></div>
       </div>
-      <label>Ponto de referência</label><input id="fRef">
+      <label>Ponto de referência</label><input id="fRef" placeholder="Ex.: perto do mercado">
+    </div>
+    <div class="card">
+      <div class="secao">🧀 Pedido</div>
+      <label>O que e quantidade</label><textarea id="fItens" placeholder="2 queijos frescal, 1 requeijão"></textarea>
       <div class="row">
-        <div><label>Data da entrega</label><input type="date" id="fData"></div>
+        <div><label>Dia da entrega</label><input type="date" id="fData"></div>
         <div><label>Horário (opcional)</label><input type="time" id="fHora"></div>
       </div>
-      <label>Pedido (o que e quantidade)</label><textarea id="fItens" placeholder="2 queijos minas meia-cura, 1 requeijão"></textarea>
       <div class="row">
         <div><label>Valor (R$)</label><input id="fValor" inputmode="decimal" placeholder="0,00"></div>
         <div><label>Pagamento</label>
           <select id="fPag"><option>Pix</option><option>Dinheiro</option><option>Cartão</option><option>Já pago</option></select></div>
       </div>
-      <label>Localização no mapa</label>
-      <div class="row">
-        <button class="btn" id="btnGeo">📍 Buscar endereço no mapa</button>
+    </div>
+    <div class="card">
+      <div class="secao">📍 Localização no mapa</div>
+      <div class="btns">
+        <button class="btn primary" id="btnGeo">Buscar no mapa</button>
         <button class="btn" id="btnPin">👆 Marcar no mapa</button>
       </div>
-      <button class="btn" id="btnGoogle" style="width:100%;margin-top:8px">🔎 Ver no Google Maps</button>
-      <label>Ou cole a localização que o cliente mandou (link do Google Maps / WhatsApp)</label>
-      <input id="fLink" placeholder="https://maps.google.com/...">
-      <p class="muted" id="geoStatus">Ainda não localizado.</p>
+      <button class="btn soft" id="btnGoogle" style="width:100%;margin-top:8px">🔎 Ver no Google Maps</button>
+      <label>Ou cole a localização que o cliente mandou</label>
+      <input id="fLink" placeholder="Link do Google Maps / WhatsApp">
+      <p class="muted" id="geoStatus" style="margin:8px 0 0">Ainda não localizado.</p>
       <div id="pickMap"></div>
-      <div class="btns">
-        <button class="btn" id="btnCancelar">Cancelar</button>
-        <button class="btn primary" id="btnSalvar">Salvar pedido</button>
-      </div>
     </div>
+    <div class="barra"><div class="in">
+      <button class="btn" id="btnCancelar">Cancelar</button>
+      <button class="btn primary" id="btnSalvar">Salvar pedido</button>
+    </div></div>
   </section>
 
   <!-- ============ ROTA ============ -->
   <section id="rota" class="view">
-    <div class="toolbar">
-      <select id="rotaModo"><option value="dia">Só deste dia</option><option value="todos">Todos os pendentes</option></select>
-      <input type="date" id="rotaData">
-      <button class="btn primary" id="btnIniciar">▶ Iniciar rota</button>
-    </div>
+    <div class="seg" id="segRota"><button data-v="dia" class="on">Do dia</button><button data-v="todos">Todos os pendentes</button></div>
+    <select id="rotaModo" class="hide"><option value="dia">d</option><option value="todos">t</option></select>
+    <div class="toolbar"><input type="date" id="rotaData"></div>
     <div id="map"></div>
+    <button class="btn primary big" id="btnIniciar" style="margin-top:12px">▶ Iniciar rota — sempre o mais perto</button>
     <div id="painelRota" style="margin-top:12px"></div>
   </section>
 
   <!-- ============ CONFIG ============ -->
   <section id="config" class="view">
+    <h2 class="tit">Ajustes</h2>
     <div class="card">
-      <h2 style="margin-top:0">Link para o anúncio</h2>
-      <p class="muted">Coloque seu número de WhatsApp. O app gera um link: quando o cliente clica no anúncio, abre o WhatsApp com a mensagem modelo pronta para ele preencher.</p>
+      <div class="secao">📣 Link para o anúncio</div>
+      <p class="muted" style="margin:4px 0 0">Coloque seu WhatsApp. O app gera o link para você colocar no anúncio, no status e no Instagram.</p>
       <label>Seu WhatsApp (com DDD)</label>
-      <input id="cfgTel" inputmode="tel" placeholder="31999999999">
+      <input id="cfgTel" inputmode="tel" placeholder="65999999999">
       <label>Cidade padrão (ajuda a achar os endereços)</label>
-      <input id="cfgCidade" placeholder="Ex.: Uberlândia - MG">
-      <button class="btn primary" id="btnSalvarCfg" style="margin-top:10px">Salvar</button>
-      <label>Link do anúncio</label>
+      <input id="cfgCidade" placeholder="Ex.: Nobres - MT">
+      <button class="btn primary" id="btnSalvarCfg" style="margin-top:12px;width:100%">Salvar</button>
+      <label>Link do anúncio (página de pedido)</label>
       <input id="cfgLink" readonly>
       <div class="btns">
         <button class="btn" id="btnCopiarLink">Copiar link</button>
-        <a class="btn" id="btnTestarLink" target="_blank">Testar link</a>
+        <a class="btn" id="btnTestarLink" target="_blank">Abrir página</a>
       </div>
+      <p class="muted" style="margin:10px 0 0">O cliente abre essa página, escolhe o pedido, marca a localização da casa e manda tudo pronto no seu WhatsApp.</p>
+      <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Prefere o link antigo, direto pro WhatsApp?</summary>
+        <input id="cfgLinkZap" readonly style="margin-top:8px" onclick="this.select()"></details>
     </div>
     <div class="card">
-      <h2 style="margin-top:0">Backup</h2>
-      <p class="muted">Os pedidos ficam salvos neste celular. Faça backup de vez em quando.</p>
+      <div class="secao">💾 Backup</div>
+      <p class="muted" style="margin:4px 0 0">Os pedidos ficam salvos neste celular. Faça backup de vez em quando.</p>
       <div class="btns">
         <button class="btn" id="btnExport">⬇ Exportar</button>
         <label class="btn" style="margin:0;color:var(--ink);font-size:16px">⬆ Importar
@@ -192,6 +257,13 @@
     </div>
   </section>
 </main>
+
+<button class="fab" id="btnNovo">＋ Novo pedido</button>
+<nav>
+  <button data-view="pedidos" class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>Pedidos</button>
+  <button data-view="rota"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Rota</button>
+  <button data-view="config"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>Ajustes</button>
+</nav>
 
 <div class="toast" id="toast"></div>
 
@@ -219,8 +291,28 @@ function mostrar(v) {
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
   if (v === 'rota') { setTimeout(() => { mapa.invalidateSize(); desenharMapa(); }, 50); if (!emRota) pegarPosicao(); }
   if (v === 'pedidos') renderLista();
+  document.body.classList.toggle('no-fab', v !== 'pedidos');
   window.scrollTo(0, 0);
 }
+// Atalhos: dia (Hoje/Amanhã/data) e botões segmentados que controlam os selects escondidos
+const amanha = () => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toLocaleDateString('sv-SE'); };
+function marcarChips() {
+  const v = $('#filtroData').value;
+  document.querySelectorAll('#chipsDia [data-dia]').forEach(c => c.classList.toggle('on', (c.dataset.dia === 'hoje' ? hoje() : amanha()) === v));
+  $('#chipOutro').classList.toggle('on', v !== hoje() && v !== amanha());
+}
+document.querySelectorAll('#chipsDia [data-dia]').forEach(c => c.onclick = () => {
+  $('#filtroData').value = c.dataset.dia === 'hoje' ? hoje() : amanha(); renderLista();
+});
+function ligarSeg(segSel, selectSel) {
+  const sync = () => document.querySelectorAll(segSel + ' button').forEach(b => b.classList.toggle('on', b.dataset.v === $(selectSel).value));
+  document.querySelectorAll(segSel + ' button').forEach(b => b.onclick = () => {
+    $(selectSel).value = b.dataset.v; sync(); $(selectSel).dispatchEvent(new Event('change'));
+  });
+  return sync;
+}
+const syncStatus = ligarSeg('#segStatus', '#filtroStatus');
+const syncRota = ligarSeg('#segRota', '#rotaModo');
 document.querySelectorAll('nav button').forEach(b => b.onclick = () => mostrar(b.dataset.view));
 
 // ---------------- Lista ----------------
@@ -237,26 +329,33 @@ function renderLista() {
   $('#resumo').innerHTML = `<div class="stat"><b>${doDia.filter(p => p.status === 'pendente').length}</b><span>a entregar</span></div>
     <div class="stat"><b>${doDia.filter(p => p.status === 'entregue').length}</b><span>entregues</span></div>
     <div class="stat dinheiro"><b>${total.toFixed(0)}</b><span>R$ no dia</span></div>`;
+  marcarChips(); syncStatus();
   $('#lista').innerHTML = lst.length ? lst.map(p => `
     <div class="card order ${p.status === 'entregue' ? 'feito' : ''}">
-      <h3><span>${esc(p.nome)}</span>
-        <span>${p.status === 'entregue' ? '<span class="pill done">entregue</span>' : '<span class="pill pend">pendente</span>'}
-        ${p.lat ? (p.geoPrec === 'aproximada' ? '<span class="pill pend">local aprox.</span>' : '') : '<span class="pill nogeo">sem mapa</span>'}</span></h3>
-      <p>📍 ${esc(p.endereco)}${p.ref ? ` <span class="muted">(${esc(p.ref)})</span>` : ''}</p>
-      ${p.itens ? `<p>🧀 ${esc(p.itens)}</p>` : ''}
-      <p class="muted">📅 ${fmtData(p.data)}${p.hora ? ' às ' + p.hora : ''}${p.valor ? ` · R$ ${esc(p.valor)} (${esc(p.pag)})` : ''}</p>
-      <div class="actions">
-        ${p.status === 'pendente' ? `<a class="btn primary" href="${linkGoogle(p)}" target="_blank">🧭 Ir</a>` : ''}
-        ${p.lat ? `<button class="btn" onclick="verNoMapa('${p.id}')">🗺 Ver no mapa</button>` : ''}
-        ${p.tel ? `<a class="btn" href="https://wa.me/55${soDigitos(p.tel).replace(/^55/, '')}" target="_blank">WhatsApp</a>` : ''}
-        <button class="btn" onclick="editar('${p.id}')">Editar</button>
-        ${p.status === 'pendente'
-          ? `<button class="btn" onclick="marcar('${p.id}','entregue')">✓ Entregue</button>`
-          : `<button class="btn" onclick="marcar('${p.id}','pendente')">Voltar p/ pendente</button>`}
-        <button class="btn danger" onclick="excluir('${p.id}')">Excluir</button>
+      <div class="topo">
+        <div class="nome">${esc(p.nome)}</div>
+        ${p.hora ? `<span class="pill hora">⏰ ${p.hora}</span>` : ''}
+        ${p.status === 'entregue' ? '<span class="pill done">✓ entregue</span>'
+          : p.lat ? (p.geoPrec === 'aproximada' ? '<span class="pill pend">local aprox.</span>' : '') : '<span class="pill nogeo">sem mapa</span>'}
       </div>
-    </div>`).join('') : `<div class="empty"><svg viewBox="0 0 64 64"><path d="M10 42 L46 22 L52 42 Z" fill="#f2c14e" stroke="#8a5a1c" stroke-width="2" stroke-linejoin="round"/><path d="M10 42 L52 42 L52 48 L10 48 Z" fill="#e3a93a" stroke="#8a5a1c" stroke-width="2"/><circle cx="30" cy="37" r="3" fill="#d39a2f"/><circle cx="41" cy="33" r="2" fill="#d39a2f"/></svg>
-      <p><b>Nenhum pedido por aqui.</b><br>Toque em “+ Novo pedido”.</p></div>`;
+      <div class="linha"><span class="ic">📍</span><span>${esc(p.endereco)}${p.ref ? `<br><span class="ref">${esc(p.ref)}</span>` : ''}</span></div>
+      ${p.itens ? `<div class="linha"><span class="ic">🧀</span><span>${esc(p.itens)}</span></div>` : ''}
+      ${p.valor ? `<div class="linha"><span class="ic">💰</span><span><b>R$ ${esc(p.valor)}</b> <span class="muted">· ${esc(p.pag)}</span></span></div>` : ''}
+      ${!d ? `<div class="linha muted"><span class="ic">📅</span><span>${fmtData(p.data)}</span></div>` : ''}
+      <div class="acoes">
+        ${p.status === 'pendente'
+          ? `<a class="btn primary" href="${linkGoogle(p)}" target="_blank">🧭 Ir</a>
+             <button class="btn ok" onclick="marcar('${p.id}','entregue')">✓ Entregue</button>`
+          : `<button class="btn" onclick="marcar('${p.id}','pendente')">↩ Voltar p/ a entregar</button>`}
+        <button class="btn mais" onclick="this.closest('.order').querySelector('.extra').classList.toggle('on')" aria-label="Mais opções">⋯</button>
+      </div>
+      <div class="extra">
+        ${p.lat ? `<button class="btn" onclick="verNoMapa('${p.id}')">🗺 Mapa</button>` : ''}
+        ${p.tel ? `<a class="btn" href="https://wa.me/55${soDigitos(p.tel).replace(/^55/, '')}" target="_blank">💬 WhatsApp</a>` : ''}
+        <button class="btn" onclick="editar('${p.id}')">✏️ Editar</button>
+        <button class="btn danger" onclick="excluir('${p.id}')">🗑 Excluir</button>
+      </div>
+    </div>`).join('') : `<div class="empty"><div class="ic">🧀</div><p><b>Nenhum pedido aqui.</b><br>Toque em “＋ Novo pedido”.</p></div>`;
 }
 
 function marcar(id, status) {
@@ -355,13 +454,18 @@ $('#btnColar').onclick = () => {
   if (v.bairro) $('#fBairro').value = v.bairro;
   if (v.cidade) $('#fCidade').value = v.cidade;
   if (v.end || v.cep) { geoTemp = null; $('#geoStatus').textContent = 'Toque em “Buscar endereço no mapa”.'; }
-  if (soDigitos(v.cep).length === 8) {
+  const temLoc = !!(extrairCoords(txt) || /maps\.app\.goo\.gl|goo\.gl\/maps/.test(txt));
+  const cepOk = soDigitos(v.cep).length === 8;
+  if (cepOk) {
     $('#fCep').value = fmtCep(v.cep);
     // Busca a cidade pelo CEP, mas não apaga rua/bairro que o cliente já escreveu
     const rua = $('#fRua').value, bairro = $('#fBairro').value;
+    const cid = $('#fCidade').value;
     buscarCep().then(() => {
       if (rua) $('#fRua').value = rua; if (bairro) $('#fBairro').value = bairro;
+      if (v.cidade) $('#fCidade').value = cid || v.cidade;
       if (rua && $('#fCidade').value) $('#cepStatus').textContent = '✅ ' + $('#fCidade').value + '. Confira rua e número.';
+      if (temLoc) usarLink(txt); // a localização vem por último, para a busca do CEP não apagar
     });
   }
   if (v.ref) $('#fRef').value = v.ref;
@@ -374,7 +478,7 @@ $('#btnColar').onclick = () => {
   const mh = v.hora.match(/(\d{1,2})(?:[:h](\d{2}))?/);
   if (mh) $('#fHora').value = `${mh[1].padStart(2,'0')}:${mh[2] || '00'}`;
   if (v.pag) { const o = [...$('#fPag').options].find(o => o.value.toLowerCase().startsWith(v.pag.toLowerCase().slice(0, 3))); if (o) $('#fPag').value = o.value; }
-  if (extrairCoords(txt) || /maps\.app\.goo\.gl|goo\.gl\/maps/.test(txt)) usarLink(txt);
+  if (temLoc && !cepOk) usarLink(txt);
   if (!v.nome && !v.end && !v.cep) toast('Não reconheci os campos. Use “Nome:”, “CEP:” e “Rua:”.');
   else toast('Preenchido! Confira os dados.');
 };
@@ -633,7 +737,7 @@ window.focarPedido = id => {
 // Botão "Ver no mapa" da lista de pedidos
 window.verNoMapa = id => {
   const p = pedidos.find(x => x.id === id); if (!p) return;
-  if (p.data) { $('#rotaModo').value = 'dia'; $('#rotaData').value = p.data; $('#rotaData').style.display = ''; }
+  if (p.data) { $('#rotaModo').value = 'dia'; $('#rotaData').value = p.data; $('#rotaData').style.display = ''; syncRota(); }
   mostrar('rota');
   setTimeout(() => focarPedido(id), 200);
 };
@@ -679,7 +783,10 @@ Pagamento:
 📍 Se puder, mande também sua localização aqui no WhatsApp (no clipe 📎 → Localização).`;
 function atualizarLink() {
   const t = soDigitos(cfg.tel).replace(/^55/, '');
-  const link = t ? `https://wa.me/55${t}?text=${encodeURIComponent(MODELO)}` : '';
+  // Link principal: página de pedido (o cliente preenche e manda a localização da casa)
+  const base = location.origin.startsWith('http') ? location.origin : 'https://entregas-queijo.vercel.app';
+  const link = t ? `${base}/pedido.html?w=${t}` : '';
+  $('#cfgLinkZap').value = t ? `https://wa.me/55${t}?text=${encodeURIComponent(MODELO)}` : '';
   $('#cfgLink').value = link || 'Preencha seu WhatsApp acima';
   $('#btnTestarLink').href = link || '#';
 }

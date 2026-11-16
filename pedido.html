@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e07b12">
+<title>Fazer pedido · Cantinho da Roça</title>
+<meta name="description" content="Peça seu queijo artesanal e receba em casa.">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root {
+    --bg: #fbf7f0; --card: #ffffff; --ink: #2b2118; --muted: #7a6d5d; --soft: #f4ece0;
+    --line: #ece3d4; --brand: #e07b12; --brand-dark: #c4650a; --brand-soft: #fff1e0;
+    --ok: #2f8f4e; --ok-soft: #e7f5ec; --danger: #c0392b;
+    --shadow: 0 1px 2px rgba(60,40,10,.06), 0 4px 14px -6px rgba(60,40,10,.18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16120d; --card: #211b14; --ink: #f6efe4; --muted: #b5a690; --soft: #2a231a;
+      --line: #3a3024; --brand: #f39a3d; --brand-dark: #f6b067; --brand-soft: #3a2a17; --ok: #5cc27f; --ok-soft: #1d3325;
+      --shadow: 0 4px 14px -6px rgba(0,0,0,.6); }
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { background: var(--brand); color: #fff; padding: calc(22px + env(safe-area-inset-top)) 16px 26px; text-align: center; }
+  header .logo { font-size: 40px; line-height: 1; }
+  header h1 { margin: 6px 0 2px; font-size: 24px; font-weight: 800; letter-spacing: -.01em; }
+  header p { margin: 0; opacity: .92; font-weight: 600; }
+  main { max-width: 560px; margin: -14px auto 0; padding: 0 16px 120px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; margin-bottom: 12px; box-shadow: var(--shadow); }
+  .secao { font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--brand-dark); }
+  label { display: block; font-size: 14px; font-weight: 700; margin: 14px 0 5px; }
+  .opc { color: var(--muted); font-weight: 600; font-size: 13px; }
+  input, textarea { width: 100%; padding: 13px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--bg); color: var(--ink); font: inherit; }
+  input:focus, textarea:focus { outline: none; border-color: var(--brand); background: var(--card); }
+  textarea { min-height: 84px; resize: vertical; }
+  .row { display: flex; gap: 8px; } .row > * { flex: 1; min-width: 0; }
+  button { font: inherit; cursor: pointer; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; padding: 14px; border-radius: 14px;
+    border: 1.5px solid var(--line); background: var(--card); color: var(--ink); font-weight: 800; text-decoration: none; }
+  .btn:active { transform: scale(.98); }
+  .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-size: 17px; }
+  .btn.zap { background: #25d366; border-color: #25d366; color: #fff; font-size: 17px; }
+  .btn.loc { background: var(--brand-soft); border-color: transparent; color: var(--brand-dark); }
+  .btn.loc.ok { background: var(--ok-soft); color: var(--ok); }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { border: 1.5px solid var(--line); background: var(--card); border-radius: 999px; padding: 10px 16px; font-weight: 700; color: var(--ink); }
+  .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .msg { margin: 6px 0 0; font-size: 14px; color: var(--muted); }
+  .erro { color: var(--danger); font-weight: 700; }
+  .rodape { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--bg) 92%, transparent); backdrop-filter: blur(6px);
+    border-top: 1px solid var(--line); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .rodape .in { max-width: 560px; margin: 0 auto; }
+  .feito { text-align: center; padding: 28px 18px; }
+  .feito .ic { font-size: 56px; }
+  .feito h2 { margin: 8px 0 6px; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🧀</div>
+  <h1>Cantinho da Roça</h1>
+  <p>Queijo artesanal na sua porta</p>
+</header>
+
+<main>
+  <form id="form" novalidate>
+    <div class="card">
+      <div class="secao">🧀 Seu pedido</div>
+      <label for="itens">O que você quer?</label>
+      <textarea id="itens" required placeholder="Ex.: 2 queijos frescal, 1 requeijão"></textarea>
+      <label>Para quando?</label>
+      <div class="chips" id="dias">
+        <button type="button" class="chip on" data-dia="hoje">Hoje</button>
+        <button type="button" class="chip" data-dia="amanha">Amanhã</button>
+        <button type="button" class="chip" data-dia="outro">Outro dia</button>
+      </div>
+      <input type="date" id="data" class="hide" style="margin-top:8px">
+      <label>Melhor horário <span class="opc">(opcional)</span></label>
+      <div class="chips" id="horarios">
+        <button type="button" class="chip on" data-v="qualquer horário">Qualquer</button>
+        <button type="button" class="chip" data-v="manhã">Manhã</button>
+        <button type="button" class="chip" data-v="tarde">Tarde</button>
+      </div>
+      <label>Pagamento</label>
+      <div class="chips" id="pags">
+        <button type="button" class="chip on" data-v="Pix">Pix</button>
+        <button type="button" class="chip" data-v="Dinheiro">Dinheiro</button>
+        <button type="button" class="chip" data-v="Cartão">Cartão</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="secao">👤 Seus dados</div>
+      <label for="nome">Seu nome</label>
+      <input id="nome" required autocomplete="name">
+      <label for="tel">Seu WhatsApp</label>
+      <input id="tel" inputmode="tel" autocomplete="tel" placeholder="(65) 99999-9999">
+    </div>
+
+    <div class="card">
+      <div class="secao">🏠 Onde entregar</div>
+      <p class="muted" style="margin:6px 0 0">Para o entregador achar sua casa certinho, toque no botão abaixo <b>estando em casa</b>.</p>
+      <button type="button" class="btn loc" id="btnLoc" style="margin-top:10px">📍 Usar minha localização</button>
+      <p class="msg" id="locMsg"></p>
+      <label for="cep">CEP</label>
+      <input id="cep" inputmode="numeric" maxlength="9" placeholder="00000-000" autocomplete="postal-code">
+      <p class="msg" id="cepMsg"></p>
+      <div class="row">
+        <div style="flex:2.4"><label for="rua">Rua</label><input id="rua" required autocomplete="address-line1"></div>
+        <div><label for="num">Número</label><input id="num" inputmode="numeric"></div>
+      </div>
+      <div class="row">
+        <div><label for="bairro">Bairro</label><input id="bairro"></div>
+        <div><label for="cidade">Cidade</label><input id="cidade" placeholder="Cidade - UF"></div>
+      </div>
+      <label for="ref">Ponto de referência <span class="opc">(opcional)</span></label>
+      <input id="ref" placeholder="Ex.: casa azul, perto do mercado">
+    </div>
+    <p class="msg erro hide" id="erro"></p>
+  </form>
+
+  <div class="card feito hide" id="feito">
+    <div class="ic">✅</div>
+    <h2>Pedido anotado!</h2>
+    <p class="muted" id="feitoTxt">Agora toque no botão abaixo para mandar a confirmação pelo WhatsApp.</p>
+    <a class="btn zap" id="btnZap" target="_blank" style="margin-top:14px">💬 Confirmar pelo WhatsApp</a>
+    <button class="btn" id="btnNovo" style="margin-top:8px">Fazer outro pedido</button>
+  </div>
+</main>
+
+<div class="rodape" id="rodape"><div class="in">
+  <button class="btn primary" id="btnEnviar">Fazer pedido</button>
+</div></div>
+
+<script>
+// ---- Configuração (preenchida quando o banco de dados estiver criado) ----
+const SUPABASE_URL = '';
+const SUPABASE_KEY = '';
+
+const $ = s => document.querySelector(s);
+const soDigitos = s => String(s || '').replace(/\D/g, '');
+const ymd = d => d.toLocaleDateString('sv-SE');
+const fmtData = s => s.split('-').reverse().join('/');
+// Número do vendedor vem no link: pedido.html?w=65999999999
+const VENDEDOR = soDigitos(new URLSearchParams(location.search).get('w')).replace(/^55/, '');
+
+let loc = null, dia = 'hoje', horario = 'qualquer horário', pag = 'Pix';
+
+function chips(sel, cb) {
+  document.querySelectorAll(sel + ' .chip').forEach(c => c.onclick = () => {
+    document.querySelectorAll(sel + ' .chip').forEach(x => x.classList.toggle('on', x === c)); cb(c);
+  });
+}
+chips('#dias', c => { dia = c.dataset.dia; $('#data').classList.toggle('hide', dia !== 'outro'); if (dia === 'outro') $('#data').focus(); });
+chips('#horarios', c => horario = c.dataset.v);
+chips('#pags', c => pag = c.dataset.v);
+$('#data').min = ymd(new Date());
+
+// Localização do celular do cliente
+$('#btnLoc').onclick = () => {
+  if (!navigator.geolocation) return $('#locMsg').textContent = 'Seu celular não permite pegar a localização. Preencha o endereço abaixo.';
+  $('#locMsg').textContent = 'Pegando sua localização...';
+  navigator.geolocation.getCurrentPosition(p => {
+    loc = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6) };
+    $('#btnLoc').classList.add('ok'); $('#btnLoc').textContent = '✅ Localização marcada';
+    $('#locMsg').textContent = 'Pronto! Preencha também o endereço, para garantir.';
+    preencherPeloGps();
+  }, () => { $('#locMsg').textContent = 'Não deu para pegar a localização. Permita o acesso ou preencha o endereço abaixo.'; },
+  { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 });
+};
+// Se possível, já preenche rua/bairro/cidade a partir do GPS
+async function preencherPeloGps() {
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.lat}&lon=${loc.lng}&addressdetails=1`, { headers: { 'Accept-Language': 'pt-BR' } });
+    const a = (await r.json()).address || {};
+    const cid = a.city || a.town || a.village || a.municipality;
+    const uf = (a['ISO3166-2-lvl4'] || '').replace('BR-', '');
+    if (!$('#rua').value && a.road) $('#rua').value = a.road;
+    if (!$('#bairro').value && (a.suburb || a.neighbourhood)) $('#bairro').value = a.suburb || a.neighbourhood;
+    if (!$('#cidade').value && cid) $('#cidade').value = cid + (uf ? ' - ' + uf : '');
+    if (!$('#cep').value && a.postcode) $('#cep').value = a.postcode;
+  } catch {}
+}
+
+// CEP
+$('#cep').addEventListener('input', async e => {
+  const d = soDigitos(e.target.value).slice(0, 8);
+  e.target.value = d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d;
+  if (d.length !== 8) return;
+  $('#cepMsg').textContent = 'Buscando CEP...';
+  try {
+    const j = await (await fetch(`https://viacep.com.br/ws/${d}/json/`)).json();
+    if (j.erro) return $('#cepMsg').textContent = 'CEP não encontrado. Confira os números.';
+    $('#cidade').value = `${j.localidade} - ${j.uf}`;
+    if (j.logradouro) { $('#rua').value = j.logradouro; if (j.bairro) $('#bairro').value = j.bairro; $('#cepMsg').textContent = '✅ Achei a rua. Coloque o número.'; $('#num').focus(); }
+    else { $('#cepMsg').textContent = `✅ ${j.localidade} - ${j.uf}. Preencha rua, número e bairro.`; $('#rua').focus(); }
+  } catch { $('#cepMsg').textContent = ''; }
+});
+
+function montar() {
+  const dataEntrega = dia === 'hoje' ? ymd(new Date()) : dia === 'amanha' ? ymd(new Date(Date.now() + 864e5)) : $('#data').value;
+  return {
+    nome: $('#nome').value.trim(), tel: $('#tel').value.trim(), cep: $('#cep').value.trim(),
+    rua: $('#rua').value.trim(), numero: $('#num').value.trim(), bairro: $('#bairro').value.trim(),
+    cidade: $('#cidade').value.trim(), ref: $('#ref').value.trim(), itens: $('#itens').value.trim(),
+    data: dataEntrega, horario, pag, lat: loc?.lat ?? null, lng: loc?.lng ?? null,
+  };
+}
+// Mensagem no mesmo formato que o app do vendedor entende
+function mensagem(p) {
+  return [`Olá, Cantinho da Roça! Quero agendar um pedido de queijo 🧀`,
+    `Nome: ${p.nome}`, p.tel && `WhatsApp: ${p.tel}`, p.cep && `CEP: ${p.cep}`, `Rua: ${p.rua}`, p.numero && `Número: ${p.numero}`,
+    p.bairro && `Bairro: ${p.bairro}`, p.cidade && `Cidade: ${p.cidade}`, p.ref && `Ponto de referência: ${p.ref}`,
+    `Pedido: ${p.itens}`, `Dia: ${fmtData(p.data)}`, `Horário: ${p.horario}`, `Pagamento: ${p.pag}`,
+    p.lat && `Localização: https://maps.google.com/?q=${p.lat},${p.lng}`].filter(Boolean).join('\n');
+}
+
+$('#btnEnviar').onclick = async () => {
+  const p = montar(), erro = $('#erro');
+  const falta = !p.itens ? 'Escreva o que você quer pedir.' : !p.nome ? 'Coloque seu nome.' : (!p.rua && !p.lat) ? 'Coloque sua rua ou toque em “Usar minha localização”.' : !p.data ? 'Escolha o dia da entrega.' : '';
+  if (falta) { erro.textContent = falta; erro.classList.remove('hide'); erro.scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
+  erro.classList.add('hide');
+  $('#btnEnviar').disabled = true; $('#btnEnviar').textContent = 'Enviando...';
+  let salvo = false;
+  if (SUPABASE_URL && SUPABASE_KEY) {
+    try {
+      const r = await fetch(SUPABASE_URL + '/rest/v1/pedidos_recebidos', { method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+        body: JSON.stringify(p) });
+      salvo = r.ok;
+    } catch {}
+  }
+  const zap = 'https://wa.me/' + (VENDEDOR ? '55' + VENDEDOR : '') + '?text=' + encodeURIComponent(mensagem(p));
+  $('#btnZap').href = zap;
+  $('#feitoTxt').textContent = salvo
+    ? 'Recebemos seu pedido. Toque abaixo para confirmar pelo WhatsApp, assim já combinamos tudo.'
+    : 'Falta só um passo: toque abaixo para mandar o pedido pelo WhatsApp.';
+  $('#form').classList.add('hide'); $('#rodape').classList.add('hide'); $('#feito').classList.remove('hide');
+  window.scrollTo(0, 0);
+  $('#btnEnviar').disabled = false; $('#btnEnviar').textContent = 'Fazer pedido';
+};
+$('#btnNovo').onclick = () => { $('#itens').value = ''; $('#form').classList.remove('hide'); $('#rodape').classList.remove('hide'); $('#feito').classList.add('hide'); };
+</script>
+</body>
+</html>
