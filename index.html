@@ -97,13 +97,26 @@
       <h2 style="margin:0 0 4px" id="formTitulo">Novo pedido</h2>
       <p class="muted">Cole a mensagem do cliente no WhatsApp para preencher automático, ou digite.</p>
       <label>Colar mensagem do WhatsApp</label>
-      <textarea id="colar" placeholder="Nome: Maria&#10;Endereço: Rua das Flores, 123, Centro, Cidade - MG&#10;Pedido: 2 queijos minas&#10;Dia: 20/11"></textarea>
+      <textarea id="colar" placeholder="Nome: Maria&#10;CEP: 38400-000&#10;Rua: Rua das Flores&#10;Número: 123&#10;Bairro: Centro&#10;Pedido: 2 queijos minas&#10;Dia: 20/11"></textarea>
       <button class="btn" id="btnColar" style="margin-top:6px">Preencher com a mensagem</button>
       <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
       <input type="hidden" id="fId">
       <label>Nome do cliente *</label><input id="fNome">
       <label>Telefone / WhatsApp</label><input id="fTel" inputmode="tel" placeholder="(31) 99999-9999">
-      <label>Endereço completo * (rua, número, bairro, cidade)</label><input id="fEnd">
+      <label>CEP</label>
+      <div class="row" style="flex-wrap:nowrap">
+        <input id="fCep" inputmode="numeric" placeholder="00000-000" maxlength="9" style="flex:1 1 auto">
+        <button class="btn" id="btnCep" style="flex:0 0 auto">Buscar CEP</button>
+      </div>
+      <p class="muted" id="cepStatus" style="margin:4px 0 0">Digite o CEP que a cidade aparece sozinha.</p>
+      <div class="row">
+        <div style="flex:3 1 180px"><label>Rua *</label><input id="fRua"></div>
+        <div style="flex:1 1 80px"><label>Número</label><input id="fNum" inputmode="numeric"></div>
+      </div>
+      <div class="row">
+        <div><label>Bairro</label><input id="fBairro"></div>
+        <div><label>Cidade - UF</label><input id="fCidade" placeholder="Cidade - MG"></div>
+      </div>
       <label>Ponto de referência</label><input id="fRef">
       <div class="row">
         <div><label>Data da entrega</label><input type="date" id="fData"></div>
@@ -248,7 +261,11 @@ function abrirForm(p) {
   $('#colar').value = '';
   $('#fId').value = p?.id || '';
   $('#fNome').value = p?.nome || ''; $('#fTel').value = p?.tel || '';
-  $('#fEnd').value = p?.endereco || ''; $('#fRef').value = p?.ref || '';
+  $('#fCep').value = p?.cep || '';
+  $('#fRua').value = p ? (p.rua ?? p.endereco ?? '') : ''; $('#fNum').value = p?.numero || '';
+  $('#fBairro').value = p?.bairro || ''; $('#fCidade').value = p?.cidade || (p ? '' : cfg.cidade || '');
+  $('#cepStatus').textContent = 'Digite o CEP que a cidade aparece sozinha.';
+  $('#fRef').value = p?.ref || '';
   $('#fData').value = p?.data || $('#filtroData').value || hoje(); $('#fHora').value = p?.hora || '';
   $('#fItens').value = p?.itens || ''; $('#fValor').value = p?.valor || ''; $('#fPag').value = p?.pag || 'Pix';
   geoTemp = p?.lat ? { lat: p.lat, lng: p.lng } : null;
@@ -259,7 +276,41 @@ function abrirForm(p) {
 $('#btnNovo').onclick = () => abrirForm(null);
 $('#btnCancelar').onclick = () => mostrar('pedidos');
 window.editar = id => abrirForm(pedidos.find(p => p.id === id));
-$('#fEnd').oninput = () => { geoTemp = null; $('#geoStatus').textContent = 'Endereço mudou — localize de novo.'; };
+['#fRua', '#fNum', '#fBairro', '#fCidade'].forEach(s => $(s).addEventListener('input', () => {
+  if (geoTemp) { geoTemp = null; $('#geoStatus').textContent = 'Endereço mudou — localize de novo.'; }
+}));
+
+// ---------- CEP (ViaCEP — gratuito) ----------
+const fmtCep = c => { const d = soDigitos(c).slice(0, 8); return d.length > 5 ? d.slice(0, 5) + '-' + d.slice(5) : d; };
+async function buscarCep() {
+  const cep = soDigitos($('#fCep').value);
+  if (cep.length !== 8) return $('#cepStatus').textContent = 'O CEP tem 8 números.';
+  $('#cepStatus').textContent = 'Buscando CEP...';
+  try {
+    const j = await (await fetch(`https://viacep.com.br/ws/${cep}/json/`)).json();
+    if (j.erro) { $('#cepStatus').textContent = '❌ CEP não encontrado. Confira os números ou preencha a cidade na mão.'; return; }
+    $('#fCidade').value = `${j.localidade} - ${j.uf}`;
+    if (j.logradouro) {
+      $('#fRua').value = j.logradouro;
+      if (j.bairro) $('#fBairro').value = j.bairro;
+      $('#cepStatus').textContent = '✅ Achei a rua. Agora coloque o número.';
+      $('#fNum').focus();
+    } else {
+      $('#cepStatus').textContent = `✅ ${j.localidade} - ${j.uf}. Esse CEP é da cidade toda: preencha rua, número e bairro.`;
+      $('#fRua').focus();
+    }
+    geoTemp = null; $('#geoStatus').textContent = 'Depois toque em “Buscar endereço no mapa”.';
+  } catch { $('#cepStatus').textContent = '❌ Sem internet. Preencha a cidade na mão.'; }
+}
+$('#fCep').addEventListener('input', e => {
+  e.target.value = fmtCep(e.target.value);
+  if (soDigitos(e.target.value).length === 8) buscarCep();
+});
+$('#btnCep').onclick = buscarCep;
+const montarEndereco = () => {
+  const rua = $('#fRua').value.trim(), num = $('#fNum').value.trim(), bairro = $('#fBairro').value.trim(), cid = $('#fCidade').value.trim();
+  return [rua + (num ? ', ' + num : ''), bairro, cid].filter(Boolean).join(' - ');
+};
 
 // Lê mensagem no formato "Campo: valor"
 $('#btnColar').onclick = () => {
@@ -273,13 +324,28 @@ $('#btnColar').onclick = () => {
   };
   const v = {
     nome: pega('nome'), tel: pega('telefone', 'tel', 'whatsapp', 'celular'),
-    end: pega('endere[cç]o', 'end', 'rua'), ref: pega('refer[eê]ncia', 'ponto de refer[eê]ncia', 'ref'),
+    end: pega('endere[cç]o', 'end', 'rua e n[uú]mero', 'rua'), num: pega('n[uú]mero', 'n[ºo°]'),
+    bairro: pega('bairro'), cidade: pega('cidade'), cep: pega('cep'),
+    ref: pega('refer[eê]ncia', 'ponto de refer[eê]ncia', 'ref'),
     itens: pega('pedido', 'produto', 'produtos', 'itens', 'quero'), dia: pega('dia', 'data'),
     hora: pega('hor[aá]rio', 'hora'), pag: pega('pagamento', 'pagar')
   };
   if (v.nome) $('#fNome').value = v.nome;
   if (v.tel) $('#fTel').value = v.tel;
-  if (v.end) { $('#fEnd').value = v.end; geoTemp = null; $('#geoStatus').textContent = 'Toque em “Buscar endereço no mapa”.'; }
+  if (v.end) $('#fRua').value = v.end;
+  if (v.num) $('#fNum').value = v.num;
+  if (v.bairro) $('#fBairro').value = v.bairro;
+  if (v.cidade) $('#fCidade').value = v.cidade;
+  if (v.end || v.cep) { geoTemp = null; $('#geoStatus').textContent = 'Toque em “Buscar endereço no mapa”.'; }
+  if (soDigitos(v.cep).length === 8) {
+    $('#fCep').value = fmtCep(v.cep);
+    // Busca a cidade pelo CEP, mas não apaga rua/bairro que o cliente já escreveu
+    const rua = $('#fRua').value, bairro = $('#fBairro').value;
+    buscarCep().then(() => {
+      if (rua) $('#fRua').value = rua; if (bairro) $('#fBairro').value = bairro;
+      if (rua && $('#fCidade').value) $('#cepStatus').textContent = '✅ ' + $('#fCidade').value + '. Confira rua e número.';
+    });
+  }
   if (v.ref) $('#fRef').value = v.ref;
   if (v.itens) $('#fItens').value = v.itens;
   const md = v.dia.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
@@ -290,24 +356,37 @@ $('#btnColar').onclick = () => {
   const mh = v.hora.match(/(\d{1,2})(?:[:h](\d{2}))?/);
   if (mh) $('#fHora').value = `${mh[1].padStart(2,'0')}:${mh[2] || '00'}`;
   if (v.pag) { const o = [...$('#fPag').options].find(o => o.value.toLowerCase().startsWith(v.pag.toLowerCase().slice(0, 3))); if (o) $('#fPag').value = o.value; }
-  if (!v.nome && !v.end) toast('Não reconheci os campos. Use “Nome:” e “Endereço:”.');
+  if (!v.nome && !v.end && !v.cep) toast('Não reconheci os campos. Use “Nome:”, “CEP:” e “Rua:”.');
   else toast('Preenchido! Confira os dados.');
 };
 
 // Busca o endereço (OpenStreetMap / Nominatim — gratuito)
 $('#btnGeo').onclick = async () => {
-  let q = $('#fEnd').value.trim();
-  if (!q) return toast('Digite o endereço primeiro.');
-  if (cfg.cidade && !q.toLowerCase().includes(cfg.cidade.split('-')[0].trim().toLowerCase())) q += ', ' + cfg.cidade;
+  const rua = $('#fRua').value.trim(), num = $('#fNum').value.trim(), bairro = $('#fBairro').value.trim();
+  const cidade = ($('#fCidade').value.trim() || cfg.cidade || '').replace(/\s*-\s*/, ', ');
+  if (!rua && !cidade) return toast('Coloque o CEP ou a rua primeiro.');
+  // Tenta do mais exato pro mais geral: rua+número → rua → bairro → cidade
+  const tentativas = [
+    rua && num && [`${rua}, ${num}, ${bairro ? bairro + ', ' : ''}${cidade}`, '✅ Achei o endereço'],
+    rua && [`${rua}, ${cidade}`, '✅ Achei a rua (sem o número exato) — arraste o pino até a casa'],
+    bairro && [`${bairro}, ${cidade}`, '⚠ Não achei a rua, mostrei o bairro — arraste o pino até a casa'],
+    cidade && [cidade, '⚠ Não achei a rua, mostrei a cidade — dê zoom e toque/arraste o pino na casa'],
+  ].filter(Boolean);
   $('#geoStatus').textContent = 'Buscando...';
   try {
-    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q),
-      { headers: { 'Accept-Language': 'pt-BR' } });
-    const j = await r.json();
-    if (!j.length) { $('#geoStatus').textContent = '❌ Não achei. Use “Marcar no mapa” e toque no local.'; return; }
-    geoTemp = { lat: +j[0].lat, lng: +j[0].lon };
-    $('#geoStatus').textContent = '✅ Achei: ' + j[0].display_name + ' — se estiver errado, arraste o pino.';
-    abrirPickMap();
+    for (const [q, msg] of tentativas) {
+      const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=br&q=' + encodeURIComponent(q),
+        { headers: { 'Accept-Language': 'pt-BR' } });
+      const j = await r.json();
+      if (j.length) {
+        geoTemp = { lat: +j[0].lat, lng: +j[0].lon };
+        $('#geoStatus').textContent = msg + '.';
+        abrirPickMap();
+        if (msg.startsWith('⚠')) pickMap.setView(geoTemp, q === cidade ? 14 : 16);
+        return;
+      }
+    }
+    $('#geoStatus').textContent = '❌ Não achei. Use “Marcar no mapa” e toque no local.';
   } catch (e) { $('#geoStatus').textContent = '❌ Sem internet ou erro. Tente “Marcar no mapa”.'; }
 };
 $('#btnPin').onclick = () => {
@@ -332,15 +411,17 @@ function colocarPino(ll) {
     pickMarker = L.marker(ll, { draggable: true }).addTo(pickMap);
     pickMarker.on('dragend', () => { const p = pickMarker.getLatLng(); geoTemp = { lat: p.lat, lng: p.lng }; });
   } else pickMarker.setLatLng(ll);
-  if (!$('#geoStatus').textContent.startsWith('✅')) $('#geoStatus').textContent = '✅ Local marcado.';
+  if (!/^[✅⚠]/.test($('#geoStatus').textContent)) $('#geoStatus').textContent = '✅ Local marcado.';
 }
 
 $('#btnSalvar').onclick = () => {
-  const nome = $('#fNome').value.trim(), endereco = $('#fEnd').value.trim();
-  if (!nome || !endereco) return toast('Preencha nome e endereço.');
+  const nome = $('#fNome').value.trim(), endereco = montarEndereco();
+  if (!nome || !$('#fRua').value.trim()) return toast('Preencha nome e rua.');
   const id = $('#fId').value || (Date.now().toString(36) + Math.random().toString(36).slice(2, 6));
   const antigo = pedidos.find(p => p.id === id);
   const p = { ...(antigo || { status: 'pendente', criadoEm: Date.now() }), id, nome, endereco,
+    cep: $('#fCep').value.trim(), rua: $('#fRua').value.trim(), numero: $('#fNum').value.trim(),
+    bairro: $('#fBairro').value.trim(), cidade: $('#fCidade').value.trim(),
     tel: $('#fTel').value.trim(), ref: $('#fRef').value.trim(), data: $('#fData').value, hora: $('#fHora').value,
     itens: $('#fItens').value.trim(), valor: $('#fValor').value.trim(), pag: $('#fPag').value,
     lat: geoTemp?.lat ?? null, lng: geoTemp?.lng ?? null };
@@ -469,7 +550,10 @@ window.pararRota = () => {
 // ---------------- Configurações ----------------
 const MODELO = `Olá! Quero agendar um pedido de queijo 🧀
 Nome:
-Endereço:
+CEP:
+Rua:
+Número:
+Bairro:
 Ponto de referência:
 Pedido:
 Dia:
