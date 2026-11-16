@@ -246,6 +246,14 @@
       <details style="margin-top:10px"><summary class="muted" style="cursor:pointer">Prefere o link antigo, direto pro WhatsApp?</summary>
         <input id="cfgLinkZap" readonly style="margin-top:8px" onclick="this.select()"></details>
     </div>
+    <div class="card" id="cardOnline">
+      <div class="secao">🌐 Pedidos pelo site</div>
+      <p class="muted" style="margin:4px 0 0">Os pedidos feitos na página do cliente chegam sozinhos aqui. Coloque o código do vendedor uma vez em cada celular.</p>
+      <label>Código do vendedor</label>
+      <input id="cfgCodigo" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Código que o Claude te passou">
+      <button class="btn primary" id="btnSalvarCodigo" style="margin-top:12px;width:100%">Salvar e buscar pedidos</button>
+      <p class="muted" id="onlineStatus" style="margin:8px 0 0"></p>
+    </div>
     <div class="card">
       <div class="secao">💾 Backup</div>
       <p class="muted" style="margin:4px 0 0">Os pedidos ficam salvos neste celular. Faça backup de vez em quando.</p>
@@ -268,6 +276,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="config.js"></script>
 <script>
 // ---------------- Armazenamento ----------------
 const KEY = 'queijo_pedidos_v1', CFG = 'queijo_cfg_v1';
@@ -334,7 +343,7 @@ function renderLista() {
     <div class="card order ${p.status === 'entregue' ? 'feito' : ''}">
       <div class="topo">
         <div class="nome">${esc(p.nome)}</div>
-        ${p.hora ? `<span class="pill hora">⏰ ${p.hora}</span>` : ''}
+        ${p.hora || p.horario ? `<span class="pill hora">⏰ ${esc(p.hora || p.horario)}</span>` : ''}
         ${p.status === 'entregue' ? '<span class="pill done">✓ entregue</span>'
           : p.lat ? (p.geoPrec === 'aproximada' ? '<span class="pill pend">local aprox.</span>' : '') : '<span class="pill nogeo">sem mapa</span>'}
       </div>
@@ -791,7 +800,7 @@ function atualizarLink() {
   $('#btnTestarLink').href = link || '#';
 }
 $('#cfgTel').value = cfg.tel; $('#cfgCidade').value = cfg.cidade; atualizarLink();
-$('#btnSalvarCfg').onclick = () => { cfg = { tel: $('#cfgTel').value, cidade: $('#cfgCidade').value.trim() }; save(CFG, cfg); atualizarLink(); toast('Salvo!'); };
+$('#btnSalvarCfg').onclick = () => { cfg = { ...cfg, tel: $('#cfgTel').value, cidade: $('#cfgCidade').value.trim() }; save(CFG, cfg); atualizarLink(); toast('Salvo!'); };
 $('#btnCopiarLink').onclick = async () => {
   try { await navigator.clipboard.writeText($('#cfgLink').value); toast('Link copiado!'); }
   catch { $('#cfgLink').select(); toast('Selecione e copie o link.'); }
@@ -810,6 +819,49 @@ $('#fileImport').onchange = async e => {
     toast('Importado!'); mostrar('pedidos');
   } catch { toast('Arquivo inválido.'); }
 };
+
+// ---------------- Pedidos pelo site (Supabase) ----------------
+const SB = window.CANTINHO || {};
+const IMPORTADOS = 'queijo_importados_v1';
+let importados = new Set(load(IMPORTADOS, []));
+const statusOnline = t => { const e = $('#onlineStatus'); if (e) e.textContent = t; };
+async function buscarPedidosOnline(manual) {
+  if (!SB.supabaseUrl || !SB.supabaseKey) { statusOnline('Ainda não ligado ao banco de dados.'); return; }
+  if (!cfg.codigo) { statusOnline('Coloque o código do vendedor para receber os pedidos do site.'); return; }
+  try {
+    const r = await fetch(SB.supabaseUrl + '/rest/v1/rpc/pedidos_recentes', { method: 'POST',
+      headers: { apikey: SB.supabaseKey, Authorization: 'Bearer ' + SB.supabaseKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ p_codigo: cfg.codigo, p_desde: new Date(Date.now() - 30 * 864e5).toISOString() }) });
+    const j = await r.json().catch(() => null);
+    if (!r.ok) {
+      const m = String(j?.message || '');
+      statusOnline(/codigo/.test(m) ? '❌ Código errado. Confira e salve de novo.' : /tentativas/.test(m) ? '⏳ Muitas tentativas. Espere 15 minutos.' : '❌ Não consegui buscar agora.');
+      return;
+    }
+    let novos = 0;
+    for (const x of j) {
+      if (importados.has(x.id)) continue;   // já veio antes (mesmo que você tenha excluído)
+      importados.add(x.id);
+      pedidos.push({ id: 's' + x.id.replace(/-/g, '').slice(0, 12), onlineId: x.id, origem: 'site', status: 'pendente',
+        criadoEm: Date.parse(x.criado_em) || Date.now(), nome: x.nome, tel: x.tel || '', cep: x.cep || '',
+        rua: x.rua || '', numero: x.numero || '', bairro: x.bairro || '', cidade: x.cidade || '', ref: x.ref || '',
+        endereco: [[x.rua, x.numero].filter(Boolean).join(', '), x.bairro, x.cidade].filter(Boolean).join(' - ') || 'Localização pelo GPS',
+        itens: x.itens || '', data: x.data || hoje(), hora: '', horario: x.horario && x.horario !== 'qualquer horário' ? x.horario : '',
+        pag: x.pag || 'Pix', valor: '', lat: x.lat ?? null, lng: x.lng ?? null, geoPrec: x.lat != null ? 'exata' : null });
+      novos++;
+    }
+    save(IMPORTADOS, [...importados]);
+    if (novos) { persist(); renderLista(); toast(novos === 1 ? '🧀 Chegou 1 pedido novo pelo site!' : `🧀 Chegaram ${novos} pedidos novos pelo site!`); }
+    else if (manual) toast('Nenhum pedido novo.');
+    statusOnline('✅ Ligado. Última busca: ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) + (novos ? ` · ${novos} novo(s)` : ''));
+  } catch { statusOnline('Sem internet agora. Tento de novo daqui a pouco.'); }
+}
+$('#cfgCodigo').value = cfg.codigo || '';
+$('#btnSalvarCodigo').onclick = () => { cfg.codigo = $('#cfgCodigo').value.trim(); save(CFG, cfg); buscarPedidosOnline(true); };
+if (!SB.supabaseUrl) $('#cardOnline').classList.add('hide');
+buscarPedidosOnline();
+setInterval(() => { if (document.visibilityState === 'visible') buscarPedidosOnline(); }, 60000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') buscarPedidosOnline(); });
 
 window.marcar = marcar; window.excluir = excluir;
 renderLista();

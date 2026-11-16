@@ -134,10 +134,10 @@
   <button class="btn primary" id="btnEnviar">Fazer pedido</button>
 </div></div>
 
+<script src="config.js"></script>
 <script>
-// ---- Configuração (preenchida quando o banco de dados estiver criado) ----
-const SUPABASE_URL = '';
-const SUPABASE_KEY = '';
+const SUPABASE_URL = (window.CANTINHO || {}).supabaseUrl || '';
+const SUPABASE_KEY = (window.CANTINHO || {}).supabaseKey || '';
 
 const $ = s => document.querySelector(s);
 const soDigitos = s => String(s || '').replace(/\D/g, '');
