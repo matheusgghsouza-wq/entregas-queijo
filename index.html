@@ -256,7 +256,7 @@ function excluir(id) {
 }
 
 // ---------------- Formulário ----------------
-let geoTemp = null, geoPrec = 'exata', pickMap = null, pickMarker = null;
+let geoTemp = null, geoPrec = 'exata', pickMap = null, pickMarker = null, pickArea = null;
 const campos = ['Id','Nome','Tel','End','Ref','Data','Hora','Itens','Valor','Pag'];
 
 function abrirForm(p) {
@@ -390,17 +390,17 @@ $('#btnGeo').onclick = async () => {
       exato = !!achou?.address?.house_number;
     }
     if (rua && !achou) achou = (await nominatim({ ...base, street: rua })).find(x => daCidade(x, cid));
-    const DICA = ' Na entrega, o Google Maps vai pelo endereço escrito (acha a casa certinho). Se quiser o pino exato: toque na casa no mapa, ou use “Ver no Google Maps”.';
+    const DICA = ' Se não marcar, tudo bem: na entrega o Google Maps vai pelo endereço escrito.';
     let msg;
     if (achou && exato) msg = '✅ Achei o endereço. Confira o pino; se precisar, arraste.';
-    else if (achou) msg = '📍 Achei a rua, mas não o número: pino aproximado.' + DICA;
+    else if (achou) msg = '📍 Achei a rua, mas não o número: a área laranja é aproximada. Toque na casa no mapa para marcar o lugar exato.' + DICA;
     else {
       const bairro = $('#fBairro').value.trim();
       if (bairro) achou = (await nominatim({ q: `${bairro}, ${cid}${uf ? ', ' + uf : ''}` })).find(x => daCidade(x, cid));
-      if (achou) msg = '📍 O mapa não conhece essa rua; marquei o bairro (aproximado).' + DICA;
+      if (achou) msg = '📍 O mapa não conhece essa rua; a área laranja é o bairro (aproximado). Toque na casa no mapa para marcar o lugar exato.' + DICA;
       else {
         achou = (await nominatim(base)).find(x => daCidade(x, cid));
-        if (achou) msg = '📍 O mapa não conhece essa rua; marquei o centro da cidade (aproximado).' + DICA;
+        if (achou) msg = '📍 O mapa não conhece essa rua; a área laranja é o centro da cidade (aproximado). Toque na casa no mapa para marcar o lugar exato.' + DICA;
       }
     }
     if (!achou) { $('#geoStatus').textContent = '❌ Não achei nem a cidade. Use “Marcar no mapa”.'; return; }
@@ -456,14 +456,21 @@ function abrirPickMap(centro) {
     pickMap.on('click', e => colocarPino(e.latlng, true));
   }
   setTimeout(() => pickMap.invalidateSize(), 50);
-  if (geoTemp) { colocarPino(geoTemp); pickMap.setView(geoTemp, 17); }
+  if (pickArea) { pickArea.remove(); pickArea = null; }
+  if (geoTemp && geoPrec === 'aproximada') {
+    // Aproximado: mostra só uma área, sem pino, para não parecer que a casa é ali
+    if (pickMarker) { pickMarker.remove(); pickMarker = null; }
+    pickArea = L.circle(geoTemp, { radius: 350, color: '#d97706', weight: 1, fillOpacity: .15 }).addTo(pickMap);
+    pickMap.setView(geoTemp, 15);
+  }
+  else if (geoTemp) { colocarPino(geoTemp); pickMap.setView(geoTemp, 17); }
   else if (centro) pickMap.setView(centro, 15);
   else if (minhaPos) pickMap.setView(minhaPos, 15);
   else navigator.geolocation?.getCurrentPosition(p => pickMap.setView([p.coords.latitude, p.coords.longitude], 15), () => {});
 }
 function colocarPino(ll, manual) {
   geoTemp = { lat: ll.lat, lng: ll.lng };
-  if (manual) { geoPrec = 'exata'; $('#geoStatus').textContent = '✅ Casa marcada no mapa.'; }
+  if (manual) { geoPrec = 'exata'; $('#geoStatus').textContent = '✅ Casa marcada no mapa.'; if (pickArea) { pickArea.remove(); pickArea = null; } }
   if (!pickMarker) {
     pickMarker = L.marker(ll, { draggable: true }).addTo(pickMap);
     pickMarker.on('dragend', () => { const p = pickMarker.getLatLng(); geoTemp = { lat: p.lat, lng: p.lng }; geoPrec = 'exata'; $('#geoStatus').textContent = '✅ Casa marcada no mapa.'; });
