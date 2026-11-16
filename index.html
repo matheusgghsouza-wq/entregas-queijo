@@ -133,6 +133,7 @@
         <button class="btn" id="btnGeo">📍 Buscar endereço no mapa</button>
         <button class="btn" id="btnPin">👆 Marcar no mapa</button>
       </div>
+      <button class="btn" id="btnGoogle" style="width:100%;margin-top:8px">🔎 Ver no Google Maps</button>
       <label>Ou cole a localização que o cliente mandou (link do Google Maps / WhatsApp)</label>
       <input id="fLink" placeholder="https://maps.google.com/...">
       <p class="muted" id="geoStatus">Ainda não localizado.</p>
@@ -229,7 +230,7 @@ function renderLista() {
     <div class="card order">
       <h3><span>${esc(p.nome)}</span>
         <span>${p.status === 'entregue' ? '<span class="pill done">entregue</span>' : '<span class="pill pend">pendente</span>'}
-        ${p.lat ? '' : '<span class="pill nogeo">sem mapa</span>'}</span></h3>
+        ${p.lat ? (p.geoPrec === 'aproximada' ? '<span class="pill pend">local aprox.</span>' : '') : '<span class="pill nogeo">sem mapa</span>'}</span></h3>
       <p>📍 ${esc(p.endereco)}${p.ref ? ` <span class="muted">(${esc(p.ref)})</span>` : ''}</p>
       ${p.itens ? `<p>🧀 ${esc(p.itens)}</p>` : ''}
       <p class="muted">📅 ${fmtData(p.data)}${p.hora ? ' às ' + p.hora : ''}${p.valor ? ` · R$ ${esc(p.valor)} (${esc(p.pag)})` : ''}</p>
@@ -255,7 +256,7 @@ function excluir(id) {
 }
 
 // ---------------- Formulário ----------------
-let geoTemp = null, pickMap = null, pickMarker = null;
+let geoTemp = null, geoPrec = 'exata', pickMap = null, pickMarker = null;
 const campos = ['Id','Nome','Tel','End','Ref','Data','Hora','Itens','Valor','Pag'];
 
 function abrirForm(p) {
@@ -271,7 +272,7 @@ function abrirForm(p) {
   if (pickMarker) { pickMarker.remove(); pickMarker = null; }
   $('#fData').value = p?.data || $('#filtroData').value || hoje(); $('#fHora').value = p?.hora || '';
   $('#fItens').value = p?.itens || ''; $('#fValor').value = p?.valor || ''; $('#fPag').value = p?.pag || 'Pix';
-  geoTemp = p?.lat ? { lat: p.lat, lng: p.lng } : null;
+  geoTemp = p?.lat ? { lat: p.lat, lng: p.lng } : null; geoPrec = p?.geoPrec || 'exata';
   $('#geoStatus').textContent = geoTemp ? '✅ Localizado no mapa.' : 'Ainda não localizado.';
   $('#pickMap').style.display = 'none';
   mostrar('form');
@@ -389,19 +390,24 @@ $('#btnGeo').onclick = async () => {
       exato = !!achou?.address?.house_number;
     }
     if (rua && !achou) achou = (await nominatim({ ...base, street: rua })).find(x => daCidade(x, cid));
-    if (achou) {
-      geoTemp = { lat: +achou.lat, lng: +achou.lon };
-      $('#geoStatus').textContent = exato ? '✅ Achei o endereço. Confira o pino; se precisar, arraste.'
-        : '✅ Achei a rua, mas não o número. Arraste o pino até a casa certa.';
-      abrirPickMap();
-      return;
+    const DICA = ' Na entrega, o Google Maps vai pelo endereço escrito (acha a casa certinho). Se quiser o pino exato: toque na casa no mapa, ou use “Ver no Google Maps”.';
+    let msg;
+    if (achou && exato) msg = '✅ Achei o endereço. Confira o pino; se precisar, arraste.';
+    else if (achou) msg = '📍 Achei a rua, mas não o número: pino aproximado.' + DICA;
+    else {
+      const bairro = $('#fBairro').value.trim();
+      if (bairro) achou = (await nominatim({ q: `${bairro}, ${cid}${uf ? ', ' + uf : ''}` })).find(x => daCidade(x, cid));
+      if (achou) msg = '📍 O mapa não conhece essa rua; marquei o bairro (aproximado).' + DICA;
+      else {
+        achou = (await nominatim(base)).find(x => daCidade(x, cid));
+        if (achou) msg = '📍 O mapa não conhece essa rua; marquei o centro da cidade (aproximado).' + DICA;
+      }
     }
-    // Não achou a rua: NÃO chuta. Mostra a cidade sem pino pra você tocar na casa.
-    const c = (await nominatim(base)).find(x => daCidade(x, cid));
-    geoTemp = null;
-    if (pickMarker) { pickMarker.remove(); pickMarker = null; }
-    $('#geoStatus').textContent = '⚠ O mapa não conhece essa rua. Toque no mapa onde fica a casa (use o ponto de referência), ou cole a localização que o cliente mandar.';
-    abrirPickMap(c ? { lat: +c.lat, lng: +c.lon } : null);
+    if (!achou) { $('#geoStatus').textContent = '❌ Não achei nem a cidade. Use “Marcar no mapa”.'; return; }
+    geoTemp = { lat: +achou.lat, lng: +achou.lon };
+    geoPrec = exato ? 'exata' : 'aproximada';
+    $('#geoStatus').textContent = msg;
+    abrirPickMap();
   } catch (e) { $('#geoStatus').textContent = '❌ Sem internet ou erro. Tente “Marcar no mapa”.'; }
 };
 
@@ -421,13 +427,23 @@ async function usarLink(texto) {
     try { const r = await (await fetch('/api/resolver?url=' + encodeURIComponent(curto[0]))).json(); c = extrairCoords(r.url); } catch {}
   }
   if (!c) { if (texto.trim()) $('#geoStatus').textContent = '❌ Não consegui ler esse link. Tente “Marcar no mapa”.'; return false; }
-  geoTemp = c;
+  geoTemp = c; geoPrec = 'exata';
   $('#geoStatus').textContent = '✅ Localização do cliente marcada. Confira o pino.';
   abrirPickMap();
   return true;
 }
 $('#fLink').addEventListener('change', e => usarLink(e.target.value));
 $('#fLink').addEventListener('paste', () => setTimeout(() => usarLink($('#fLink').value), 0));
+// Endereço em texto, do jeito que o Google Maps entende
+const enderecoTexto = p => [[p.rua || p.endereco, p.numero].filter(Boolean).join(', '), p.bairro,
+  p.cidade, p.cep].filter(Boolean).join(' - ');
+$('#btnGoogle').onclick = () => {
+  const t = enderecoTexto({ rua: $('#fRua').value.trim(), numero: $('#fNum').value.trim(), bairro: $('#fBairro').value.trim(),
+    cidade: $('#fCidade').value.trim(), cep: $('#fCep').value.trim() });
+  if (!$('#fRua').value.trim()) return toast('Coloque a rua primeiro.');
+  window.open('https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(t), '_blank');
+  $('#geoStatus').textContent = 'No Google Maps: segure o dedo em cima da casa → Compartilhar → Copiar. Depois cole o link no campo de localização aqui embaixo.';
+};
 $('#btnPin').onclick = () => {
   abrirPickMap();
   $('#geoStatus').textContent = 'Toque no mapa onde é a casa do cliente (pode arrastar o pino).';
@@ -437,7 +453,7 @@ function abrirPickMap(centro) {
   if (!pickMap) {
     pickMap = L.map('pickMap').setView([-15.8, -47.9], 4);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(pickMap);
-    pickMap.on('click', e => colocarPino(e.latlng));
+    pickMap.on('click', e => colocarPino(e.latlng, true));
   }
   setTimeout(() => pickMap.invalidateSize(), 50);
   if (geoTemp) { colocarPino(geoTemp); pickMap.setView(geoTemp, 17); }
@@ -445,13 +461,14 @@ function abrirPickMap(centro) {
   else if (minhaPos) pickMap.setView(minhaPos, 15);
   else navigator.geolocation?.getCurrentPosition(p => pickMap.setView([p.coords.latitude, p.coords.longitude], 15), () => {});
 }
-function colocarPino(ll) {
+function colocarPino(ll, manual) {
   geoTemp = { lat: ll.lat, lng: ll.lng };
+  if (manual) { geoPrec = 'exata'; $('#geoStatus').textContent = '✅ Casa marcada no mapa.'; }
   if (!pickMarker) {
     pickMarker = L.marker(ll, { draggable: true }).addTo(pickMap);
-    pickMarker.on('dragend', () => { const p = pickMarker.getLatLng(); geoTemp = { lat: p.lat, lng: p.lng }; });
+    pickMarker.on('dragend', () => { const p = pickMarker.getLatLng(); geoTemp = { lat: p.lat, lng: p.lng }; geoPrec = 'exata'; $('#geoStatus').textContent = '✅ Casa marcada no mapa.'; });
   } else pickMarker.setLatLng(ll);
-  if (!/^[✅⚠]/.test($('#geoStatus').textContent)) $('#geoStatus').textContent = '✅ Local marcado.';
+  if (!/^[✅⚠📍]/u.test($('#geoStatus').textContent)) $('#geoStatus').textContent = '✅ Local marcado.';
 }
 
 $('#btnSalvar').onclick = () => {
@@ -464,7 +481,7 @@ $('#btnSalvar').onclick = () => {
     bairro: $('#fBairro').value.trim(), cidade: $('#fCidade').value.trim(),
     tel: $('#fTel').value.trim(), ref: $('#fRef').value.trim(), data: $('#fData').value, hora: $('#fHora').value,
     itens: $('#fItens').value.trim(), valor: $('#fValor').value.trim(), pag: $('#fPag').value,
-    lat: geoTemp?.lat ?? null, lng: geoTemp?.lng ?? null };
+    lat: geoTemp?.lat ?? null, lng: geoTemp?.lng ?? null, geoPrec: geoTemp ? geoPrec : null };
   if (antigo) Object.assign(antigo, p); else pedidos.push(p);
   persist();
   toast(p.lat ? 'Pedido salvo!' : 'Salvo, mas sem localização — não vai aparecer na rota.');
@@ -546,8 +563,8 @@ function renderPainel(ordem) {
       ${p.valor ? `<p>💰 R$ ${esc(p.valor)} — ${esc(p.pag)}</p>` : ''}
       ${p.hora ? `<p>⏰ ${p.hora}</p>` : ''}
       <div class="btns">
-        <a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving">🧭 Google Maps</a>
-        <a class="btn primary" target="_blank" href="https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes">🧭 Waze</a>
+        <a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.geoPrec === 'aproximada' ? encodeURIComponent(enderecoTexto(p)) : p.lat + ',' + p.lng}&travelmode=driving">🧭 Google Maps</a>
+        <a class="btn primary" target="_blank" href="${p.geoPrec === 'aproximada' ? 'https://waze.com/ul?q=' + encodeURIComponent(enderecoTexto(p)) + '&navigate=yes' : `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`}">🧭 Waze</a>
         ${tel ? `<a class="btn" target="_blank" href="https://wa.me/55${tel}?text=${msg}">💬 Avisar cliente</a>
                  <a class="btn" href="tel:${tel}">📞 Ligar</a>` : ''}
       </div>
