@@ -1,5 +1,5 @@
 // Cache simples para o app abrir mesmo com sinal fraco
-const C = 'cantinho-v5';
+const C = 'cantinho-v6';
 self.addEventListener('install', e => e.waitUntil(caches.open(C).then(c => c.addAll(['./', 'index.html', 'pedido.html', 'config.js', 'manifest.webmanifest', 'icon.svg']))));
 self.addEventListener('fetch', e => {
   if (e.request.method !== 'GET' || !e.request.url.startsWith(self.location.origin)) return;
