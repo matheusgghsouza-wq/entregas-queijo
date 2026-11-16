@@ -148,6 +148,7 @@
   <!-- ============ ROTA ============ -->
   <section id="rota" class="view">
     <div class="toolbar">
+      <select id="rotaModo"><option value="dia">Só deste dia</option><option value="todos">Todos os pendentes</option></select>
       <input type="date" id="rotaData">
       <button class="btn primary" id="btnIniciar">▶ Iniciar rota</button>
     </div>
@@ -208,7 +209,7 @@ const fmtDist = m => m < 1000 ? `${Math.round(m)} m` : `${(m/1000).toFixed(1).re
 function mostrar(v) {
   document.querySelectorAll('.view').forEach(e => e.classList.toggle('active', e.id === v));
   document.querySelectorAll('nav button').forEach(b => b.classList.toggle('active', b.dataset.view === v));
-  if (v === 'rota') setTimeout(() => { mapa.invalidateSize(); desenharMapa(); }, 50);
+  if (v === 'rota') { setTimeout(() => { mapa.invalidateSize(); desenharMapa(); }, 50); if (!emRota) pegarPosicao(); }
   if (v === 'pedidos') renderLista();
   window.scrollTo(0, 0);
 }
@@ -235,6 +236,8 @@ function renderLista() {
       ${p.itens ? `<p>🧀 ${esc(p.itens)}</p>` : ''}
       <p class="muted">📅 ${fmtData(p.data)}${p.hora ? ' às ' + p.hora : ''}${p.valor ? ` · R$ ${esc(p.valor)} (${esc(p.pag)})` : ''}</p>
       <div class="actions">
+        ${p.status === 'pendente' ? `<a class="btn primary" href="${linkGoogle(p)}" target="_blank">🧭 Ir</a>` : ''}
+        ${p.lat ? `<button class="btn" onclick="verNoMapa('${p.id}')">🗺 Ver no mapa</button>` : ''}
         ${p.tel ? `<a class="btn" href="https://wa.me/55${soDigitos(p.tel).replace(/^55/, '')}" target="_blank">WhatsApp</a>` : ''}
         <button class="btn" onclick="editar('${p.id}')">Editar</button>
         ${p.status === 'pendente'
@@ -510,7 +513,15 @@ function distancia(a, b) { // metros (Haversine)
   const h = Math.sin(dLat/2)**2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng/2)**2;
   return 2 * R * Math.asin(Math.sqrt(h));
 }
-const pendentesDoDia = () => pedidos.filter(p => p.status === 'pendente' && p.data === $('#rotaData').value);
+const noFiltroRota = p => $('#rotaModo').value === 'todos' || p.data === $('#rotaData').value;
+const pendentesDoDia = () => pedidos.filter(p => p.status === 'pendente' && noFiltroRota(p));
+
+// Links de navegação: pino aproximado → vai pelo endereço escrito
+const linkGoogle = p => 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' +
+  (p.lat && p.geoPrec !== 'aproximada' ? p.lat + ',' + p.lng : encodeURIComponent(enderecoTexto(p)));
+const linkWaze = p => p.lat && p.geoPrec !== 'aproximada' ? `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`
+  : 'https://waze.com/ul?navigate=yes&q=' + encodeURIComponent(enderecoTexto(p));
+let marcadores = {};
 
 // Ordem sugerida: sempre o mais perto do ponto atual (vizinho mais próximo)
 function ordemSugerida(origem) {
@@ -524,16 +535,17 @@ function ordemSugerida(origem) {
 }
 
 function desenharMapa() {
-  camada.clearLayers();
+  camada.clearLayers(); marcadores = {};
   const ordem = ordemSugerida(minhaPos);
   const pts = [];
   ordem.forEach((p, i) => {
     const ehProx = emRota && p.id === proximoId;
-    L.marker([p.lat, p.lng], { icon: icone(ehProx ? '#d97706' : '#2563eb', i + 1) })
-      .bindPopup(`<b>${esc(p.nome)}</b><br>${esc(p.endereco)}<br>${esc(p.itens || '')}`).addTo(camada);
+    marcadores[p.id] = L.marker([p.lat, p.lng], { icon: icone(ehProx ? '#d97706' : '#2563eb', i + 1) })
+      .bindPopup(`<b>${i + 1}. ${esc(p.nome)}</b><br>${esc(p.endereco)}<br>${esc(p.itens || '')}${p.data ? '<br>📅 ' + fmtData(p.data) : ''}
+        <br><a href="${linkGoogle(p)}" target="_blank"><b>🧭 Ir até aqui</b></a>`).addTo(camada);
     pts.push([p.lat, p.lng]);
   });
-  pedidos.filter(p => p.status === 'entregue' && p.data === $('#rotaData').value && p.lat)
+  pedidos.filter(p => p.status === 'entregue' && p.data === $('#rotaData').value && p.lat && $('#rotaModo').value === 'dia')
     .forEach(p => L.marker([p.lat, p.lng], { icon: icone('#15803d', '✓'), opacity: .7 }).bindPopup(esc(p.nome) + ' — entregue').addTo(camada));
   if (minhaPos && ordem.length) L.polyline([[minhaPos.lat, minhaPos.lng], ...pts], { color: '#d97706', weight: 3, dashArray: '6 8' }).addTo(camada);
   if (!emRota) {
@@ -547,8 +559,15 @@ function renderPainel(ordem) {
   const semGeo = pendentesDoDia().filter(p => !p.lat).length;
   const aviso = semGeo ? `<p class="muted">⚠ ${semGeo} pedido(s) sem localização não entram na rota. Edite e marque no mapa.</p>` : '';
   if (!emRota) {
-    $('#painelRota').innerHTML = `<div class="card"><b>${ordem.length} entrega(s) para ${fmtData($('#rotaData').value)}</b>
-      <p class="muted">Toque em “Iniciar rota”. O app usa seu GPS e sempre manda para a entrega mais perto.</p>${aviso}</div>`;
+    const titulo = $('#rotaModo').value === 'todos' ? 'pendentes (todos os dias)' : 'para ' + fmtData($('#rotaData').value);
+    $('#painelRota').innerHTML = `<div class="card"><b>${ordem.length} entrega(s) ${titulo}</b>
+      <p class="muted">${minhaPos ? 'Em ordem: do mais perto de você para o mais longe.' : 'Permita a localização para ver do mais perto ao mais longe.'}
+      Toque em “Iniciar rota” e o app sempre manda para a entrega mais perto.</p>${aviso}</div>` +
+      ordem.map((p, i) => `<div class="card order">
+        <h3><span>${i + 1}. ${esc(p.nome)}</span><span class="muted" style="font-size:14px">${minhaPos ? fmtDist(distancia(minhaPos, p)) : ''}</span></h3>
+        <p>📍 ${esc(p.endereco)}</p>${p.itens ? `<p>🧀 ${esc(p.itens)}</p>` : ''}
+        <div class="actions"><a class="btn" href="${linkGoogle(p)}" target="_blank">🧭 Ir</a>
+          <button class="btn" onclick="focarPedido('${p.id}')">🗺 Ver no mapa</button></div></div>`).join('');
     return;
   }
   const p = ordem[0];
@@ -570,8 +589,8 @@ function renderPainel(ordem) {
       ${p.valor ? `<p>💰 R$ ${esc(p.valor)} — ${esc(p.pag)}</p>` : ''}
       ${p.hora ? `<p>⏰ ${p.hora}</p>` : ''}
       <div class="btns">
-        <a class="btn primary" target="_blank" href="https://www.google.com/maps/dir/?api=1&destination=${p.geoPrec === 'aproximada' ? encodeURIComponent(enderecoTexto(p)) : p.lat + ',' + p.lng}&travelmode=driving">🧭 Google Maps</a>
-        <a class="btn primary" target="_blank" href="${p.geoPrec === 'aproximada' ? 'https://waze.com/ul?q=' + encodeURIComponent(enderecoTexto(p)) + '&navigate=yes' : `https://waze.com/ul?ll=${p.lat},${p.lng}&navigate=yes`}">🧭 Waze</a>
+        <a class="btn primary" target="_blank" href="${linkGoogle(p)}">🧭 Google Maps</a>
+        <a class="btn primary" target="_blank" href="${linkWaze(p)}">🧭 Waze</a>
         ${tel ? `<a class="btn" target="_blank" href="https://wa.me/55${tel}?text=${msg}">💬 Avisar cliente</a>
                  <a class="btn" href="tel:${tel}">📞 Ligar</a>` : ''}
       </div>
@@ -585,8 +604,30 @@ function renderPainel(ordem) {
 }
 
 $('#rotaData').onchange = () => { pulados.clear(); desenharMapa(); };
+$('#rotaModo').onchange = () => { $('#rotaData').style.display = $('#rotaModo').value === 'todos' ? 'none' : ''; pulados.clear(); desenharMapa(); };
+// Pega a localização ao abrir a aba Rota, para ordenar do mais perto ao mais longe
+function pegarPosicao() {
+  navigator.geolocation?.getCurrentPosition(pos => {
+    minhaPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    if (!meuMarcador) meuMarcador = L.circleMarker(minhaPos, { radius: 9, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }).addTo(mapa);
+    else meuMarcador.setLatLng(minhaPos);
+    if (!emRota) desenharMapa();
+  }, () => {}, { enableHighAccuracy: true, maximumAge: 60000, timeout: 15000 });
+}
+window.focarPedido = id => {
+  const m = marcadores[id]; if (!m) return;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  mapa.setView(m.getLatLng(), 16); m.openPopup();
+};
+// Botão "Ver no mapa" da lista de pedidos
+window.verNoMapa = id => {
+  const p = pedidos.find(x => x.id === id); if (!p) return;
+  if (p.data) { $('#rotaModo').value = 'dia'; $('#rotaData').value = p.data; $('#rotaData').style.display = ''; }
+  mostrar('rota');
+  setTimeout(() => focarPedido(id), 200);
+};
 $('#btnIniciar').onclick = () => {
-  if (!pendentesDoDia().some(p => p.lat)) return toast('Não há entregas com localização neste dia.');
+  if (!pendentesDoDia().some(p => p.lat)) return toast('Não há entregas com localização para mostrar.');
   if (!navigator.geolocation) return toast('Este aparelho não tem GPS disponível.');
   emRota = true; pulados.clear(); centrouUmaVez = false;
   $('#btnIniciar').style.display = 'none';
