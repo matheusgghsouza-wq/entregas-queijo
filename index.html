@@ -830,7 +830,7 @@ async function buscarPedidosOnline(manual) {
   if (!cfg.codigo) { statusOnline('Coloque o código do vendedor para receber os pedidos do site.'); return; }
   try {
     const r = await fetch(SB.supabaseUrl + '/rest/v1/rpc/pedidos_recentes', { method: 'POST',
-      headers: { apikey: SB.supabaseKey, Authorization: 'Bearer ' + SB.supabaseKey, 'Content-Type': 'application/json' },
+      headers: { apikey: SB.supabaseKey, 'Content-Type': 'application/json' },
       body: JSON.stringify({ p_codigo: cfg.codigo, p_desde: new Date(Date.now() - 30 * 864e5).toISOString() }) });
     const j = await r.json().catch(() => null);
     if (!r.ok || !j?.ok) {
